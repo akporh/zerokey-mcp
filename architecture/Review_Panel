@@ -1,0 +1,165 @@
+
+
+import React, { useState } from 'react';
+
+export default function ArchitectureReviewPanel() {
+  const [activeStep, setActiveStep] = useState('idle');
+  const [useAllowance, setUseAllowance] = useState(false);
+  const [logs, setLogs] = useState([
+    { id: 1, type: 'system', text: 'FastAPI MCP Proxy server initialized on Port 8000.' },
+    { id: 2, type: 'hedera', text: 'Connected to Hedera Testnet. HCS Logging Audit Topic listening at 0.0.YYYYYY.' }
+  ]);
+
+  const triggerSimulationRun = (status) => {
+    setLogs([]);
+    const timestamp = () => new Date().toLocaleTimeString();
+    
+    if (useAllowance) {
+      setActiveStep('allowance_check');
+      setTimeout(() => {
+        setLogs(prev => [...prev, { id: 3, type: 'auth', text: `[${timestamp()}] Client Allowance header discovered.` }]);
+        setActiveStep('hcs_log');
+        setLogs(prev => [...prev, { id: 4, type: 'hedera', text: `[${timestamp()}] HCS Post: Allowance match verified. Transferring 0.5 HBAR via transaction pool.` }]);
+        
+        setTimeout(() => {
+          if (status === 'success') {
+            setActiveStep('execute_tool');
+            setLogs(prev => [...prev, { id: 5, type: 'tool', text: `[${timestamp()}] Executing Secure Static Code Scan via server-side secure vault keys.` }]);
+            setTimeout(() => {
+              setActiveStep('complete');
+              setLogs(prev => [...prev, { id: 6, type: 'system', text: `[${timestamp()}] Response output successfully delivered: HTTP 200 OK.` }]);
+            }, 1200);
+          } else {
+            setActiveStep('execute_tool');
+            setLogs(prev => [...prev, { id: 5, type: 'error', text: `[${timestamp()}] Downstream Code Analysis engine returned error 503 Timeout.` }]);
+            setTimeout(() => {
+              setActiveStep('refund');
+              setLogs(prev => [...prev, { id: 6, type: 'hedera', text: `[${timestamp()}] Guard Hook Triggered: Initiating automated refund tracking of 0.5 HBAR to client wallet.` }]);
+              setLogs(prev => [...prev, { id: 7, type: 'hedera', text: `[${timestamp()}] HCS Post: Refund transaction finalized under sequence index.` }]);
+            }, 1200);
+          }
+        }, 1000);
+      }, 800);
+    } else {
+      setActiveStep('request');
+      setLogs(prev => [...prev, { id: 3, type: 'system', text: `[${timestamp()}] Incoming stateless client tool execution request received.` }]);
+      
+      setTimeout(() => {
+        setActiveStep('challenge_402');
+        setLogs(prev => [...prev, { id: 4, type: 'auth', text: `[${timestamp()}] No auth token or allowance pool found. Halting routing path.` }]);
+        setLogs(prev => [...prev, { id: 5, type: 'auth', text: `[${timestamp()}] Sent: HTTP 402 Payment Required | Invoice Reference UUID attached.` }]);
+        
+        setTimeout(() => {
+          setActiveStep('verify_tx');
+          setLogs(prev => [...prev, { id: 6, type: 'system', text: `[${timestamp()}] Client returned retry payload featuring x402-Payment-Receipt header.` }]);
+          setLogs(prev => [...prev, { id: 7, type: 'hedera', text: `[${timestamp()}] Consulting Hedera Mirror Node indexers... Transaction confirmed as SUCCESS.` }]);
+          setActiveStep('hcs_log');
+          setLogs(prev => [...prev, { id: 8, type: 'hedera', text: `[${timestamp()}] HCS Post: Custom metadata state transaction registered permanently on-chain.` }]);
+          
+          setTimeout(() => {
+            if (status === 'success') {
+              setActiveStep('execute_tool');
+              setLogs(prev => [...prev, { id: 9, type: 'tool', text: `[${timestamp()}] Running server-side OCR premium extraction script payload...` }]);
+              setTimeout(() => {
+                setActiveStep('complete');
+                setLogs(prev => [...prev, { id: 10, type: 'system', text: `[${timestamp()}] File parsing metrics compiled. Dispatched to client: HTTP 200 OK.` }]);
+              }, 1200);
+            } else {
+              setActiveStep('execute_tool');
+              setLogs(prev => [...prev, { id: 9, type: 'error', text: `[${timestamp()}] Downstream tool crash detected during parsing lifecycle.` }]);
+              setTimeout(() => {
+                setActiveStep('refund');
+                setLogs(prev => [...prev, { id: 10, type: 'hedera', text: `[${timestamp()}] Safe-Guard Loop: Reverse executing payment of 0.5 HBAR back to client account.` }]);
+                setLogs(prev => [...prev, { id: 11, type: 'hedera', text: `[${timestamp()}] HCS Post: Refund transaction event state closed.` }]);
+              }, 1200);
+            }
+          }, 1000);
+        }, 1500);
+      }, 1000);
+    }
+  };
+
+  return (
+    <div style={{ backgroundColor: '#0f172a', color: '#f8fafc', padding: '24px', fontFamily: 'monospace', borderRadius: '12px', maxWidth: '900px', margin: 'auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #334155', paddingBottom: '12px', marginBottom: '20px' }}>
+        <div>
+          <h2 style={{ margin: 0, color: '#38bdf8' }}>💎 Hedera x402 MCP Proxy Server</h2>
+          <p style={{ margin: '4px 0 0 0', color: '#94a3b8', fontSize: '14px' }}>Week 3 Hackathon Simulation & Architecture Review Console</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#1e293b', padding: '8px 12px', borderRadius: '6px' }}>
+          <input 
+            type="checkbox" 
+            id="allowance" 
+            checked={useAllowance} 
+            onChange={(e) => setUseAllowance(e.target.checked)} 
+            style={{ cursor: 'pointer' }}
+          />
+          <label htmlFor="allowance" style={{ fontSize: '13px', cursor: 'pointer', color: '#e2e8f0' }}>Enable Native HBAR Allowance Mode</label>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+        <div>
+          <div style={{ backgroundColor: '#020617', padding: '16px', borderRadius: '8px', minHeight: '320px', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: '13px', lineHeight: '1.6' }}>
+              <div style={{ color: '#64748b', borderBottom: '1px solid #1e293b', paddingBottom: '6px', marginBottom: '8px' }}>⚡ LIVE SERVER LOG OUTPUTS</div>
+              {logs.map((log) => (
+                <div key={log.id} style={{ 
+                  color: log.type === 'auth' ? '#f59e0b' : log.type === 'hedera' ? '#10b981' : log.type === 'tool' ? '#a855f7' : log.type === 'error' ? '#ef4444' : '#f8fafc',
+                  marginBottom: '4px'
+                }}>
+                  &gt; {log.text}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+              <button 
+                onClick={() => triggerSimulationRun('success')}
+                style={{ flex: 1, backgroundColor: '#0284c7', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Simulate Successful Pipeline Run
+              </button>
+              <button 
+                onClick={() => triggerSimulationRun('failure')}
+                style={{ flex: 1, backgroundColor: '#b91c1c', color: '#fff', border: 'none', padding: '10px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Simulate Downstream Failure & Refund
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 'bold' }}>ACTIVE ARCHITECTURE STATE</div>
+          {[
+            { id: 'request', label: '1. Client MCP Request Incoming' },
+            { id: 'allowance_check', label: '2. Check Token Allowance Pool' },
+            { id: 'challenge_402', label: '3. Dispatched HTTP 402 Challenge' },
+            { id: 'verify_tx', label: '4. Hedera Mirror Node Verification' },
+            { id: 'hcs_log', label: '5. Immutable Audit Log Posted to HCS' },
+            { id: 'execute_tool', label: '6. Protected Backend Tool Running' },
+            { id: 'refund', label: '⚠️ Fallback Auto-Refund Initialized' },
+            { id: 'complete', label: '✅ Done (Data Payload Streamed)' },
+          ].map((step) => {
+            const isCurrent = activeStep === step.id;
+            return (
+              <div key={step.id} style={{
+                padding: '10px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: isCurrent ? 'bold' : 'normal',
+                backgroundColor: isCurrent ? '#0369a1' : '#1e293b',
+                color: isCurrent ? '#fff' : '#94a3b8',
+                borderLeft: isCurrent ? '4px solid #38bdf8' : '4px solid transparent',
+                transition: 'all 0.2s ease'
+              }}>
+                {step.label}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

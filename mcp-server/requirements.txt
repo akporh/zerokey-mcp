@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+mcp
+httpx
+python-dotenv
+pyyaml
+hedera-agent-kit==3.4.2
+cryptography
+pyflakes
+bandit
