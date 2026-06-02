@@ -33,6 +33,7 @@ async def write_event(
     tool: str | None = None,
     amount_tinybar: int | None = None,
     payer: str | None = None,
+    mode: str | None = None,
 ) -> None:
     payload = json.dumps({
         "event": event_type,
@@ -41,6 +42,7 @@ async def write_event(
         "tool": tool,
         "amount_tinybar": amount_tinybar,
         "payer": payer,
+        "mode": mode,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     try:

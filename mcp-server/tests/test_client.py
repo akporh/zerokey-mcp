@@ -21,11 +21,12 @@ import os
 load_dotenv()
 
 from hiero_sdk_python import (
-    Client,
+    AccountAllowanceApproveTransaction,
     AccountId,
+    Client,
+    Hbar,
     PrivateKey,
     TransferTransaction,
-    Hbar,
 )
 
 SERVER_URL = "http://localhost:8000"
@@ -33,6 +34,7 @@ TOOL_ENDPOINT = f"{SERVER_URL}/mcp/tools/execute-static-analysis"
 
 AGENT_ACCOUNT_ID = os.environ["HEDERA_AGENT_ACCOUNT_ID"]
 AGENT_PRIVATE_KEY = os.environ["HEDERA_AGENT_PRIVATE_KEY"]
+SERVER_ACCOUNT_ID = os.environ["HEDERA_SERVER_ACCOUNT_ID"]
 
 SAMPLE_CODE = """
 import os
@@ -177,6 +179,44 @@ def step5_downstream_failure_triggers_refund() -> None:
     print(f"  Verify HCS on Hashscan: https://hashscan.io/testnet/topic/{os.environ.get('HCS_AUDIT_TOPIC_ID', '0.0.9120320')}")
 
 
+def step6_allowance_mode() -> None:
+    _separator("Step 6 — Allowance mode (6 back-to-back calls, zero 402 interrupts)")
+
+    # 6a: approve allowance — agent signs once
+    client = Client.for_testnet()
+    client.set_operator(
+        AccountId.from_string(AGENT_ACCOUNT_ID),
+        PrivateKey.from_string(AGENT_PRIVATE_KEY),
+    )
+    total_hbar = float(os.environ["TOOL_PRICE_HBAR"]) * 6
+    (
+        AccountAllowanceApproveTransaction()
+        .approve_hbar_allowance(
+            AccountId.from_string(AGENT_ACCOUNT_ID),
+            AccountId.from_string(SERVER_ACCOUNT_ID),
+            Hbar(total_hbar),
+        )
+        .execute(client)
+    )
+    print(f"Allowance approved: {total_hbar} HBAR → server {SERVER_ACCOUNT_ID}")
+
+    # 6b: 6 back-to-back calls — all must return 200, zero 402 interrupts
+    headers = {"x-allowance": "true", "x-agent-account": AGENT_ACCOUNT_ID}
+    for i in range(1, 7):
+        r = httpx.post(
+            TOOL_ENDPOINT,
+            json={"code": SAMPLE_CODE, "language": "python"},
+            headers=headers,
+        )
+        assert r.status_code == 200, (
+            f"Call {i}/6: Expected 200, got {r.status_code}\nBody: {r.text}"
+        )
+        print(f"  Call {i}/6: 200 ✓")
+
+    print("✓ 6 back-to-back allowance-mode calls — zero 402 interrupts")
+    print(f"  Verify HCS: https://hashscan.io/testnet/topic/{os.environ.get('HCS_AUDIT_TOPIC_ID')}")
+
+
 def main() -> None:
     print("\n=== x402 Pay-Per-Call End-to-End Test ===")
     invoice = step1_request_without_receipt()
@@ -184,6 +224,7 @@ def main() -> None:
     payment_receipt = step3_retry_with_receipt(tx_id, invoice)
     step4_replay_protection(payment_receipt)
     step5_downstream_failure_triggers_refund()
+    step6_allowance_mode()
     print("\n=== ALL STEPS PASSED ===\n")
 
 

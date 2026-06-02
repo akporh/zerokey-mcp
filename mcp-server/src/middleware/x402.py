@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from src.allowance.pull import dispatch_allowance_pull
 from src.audit.hcs import write_event
 from src.config import settings
 from src.refund.transfer import dispatch_refund
@@ -63,6 +64,51 @@ async def _handle_failure(
         await write_event("refund_failed", uuid=payment_uuid, tx_id=original_tx_id, payer=payer_account_id)
 
 
+async def _execute_and_audit(
+    request: Request,
+    call_next: object,
+    payment_uuid: str,
+    payer_account_id: str,
+    amount_tinybar: int,
+    tx_id: str,
+    tool_path: str,
+    mode: str | None = None,
+) -> Response:
+    try:
+        response = await call_next(request)
+        downstream_failed = response.status_code >= 500
+    except Exception as exc:
+        logger.error("Tool execution exception (uuid=%s): %s", payment_uuid, exc)
+        downstream_failed = True
+        response = None
+
+    if downstream_failed:
+        asyncio.create_task(_handle_failure(
+            payment_uuid, payer_account_id, amount_tinybar, tx_id, tool_path
+        ))
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "downstream_failure",
+                "refund_status": "dispatched",
+                "hashscan_topic_url": (
+                    f"https://hashscan.io/testnet/topic/{settings['HCS_AUDIT_TOPIC_ID']}"
+                ),
+            },
+        )
+
+    asyncio.create_task(write_event(
+        "tool_executed",
+        uuid=payment_uuid,
+        tx_id=tx_id,
+        tool=tool_path,
+        amount_tinybar=amount_tinybar,
+        payer=payer_account_id,
+        mode=mode,
+    ))
+    return response
+
+
 class X402Middleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: object) -> Response:
         if not (request.method == "POST" and request.url.path.startswith("/mcp/tools/")):
@@ -70,9 +116,53 @@ class X402Middleware(BaseHTTPMiddleware):
 
         tool_path = request.url.path
         amount_tinybar = round(float(settings["TOOL_PRICE_HBAR"]) * 100_000_000)
+
+        # ── Mode B: Allowance path ────────────────────────────────────────────
+        if request.headers.get("x-allowance") == "true":
+            agent_account_id = request.headers.get("x-agent-account")
+            if not agent_account_id:
+                return Response(
+                    content=json.dumps({"error": "agent_account_missing"}),
+                    status_code=402,
+                    media_type="application/json",
+                )
+
+            payment_uuid = str(uuid4())
+            try:
+                pull_tx_id = await dispatch_allowance_pull(
+                    agent_account_id, amount_tinybar, payment_uuid
+                )
+            except Exception as exc:
+                logger.warning("Allowance pull failed (agent=%s): %s", agent_account_id, exc)
+                return Response(
+                    content=json.dumps({"error": "allowance_insufficient"}),
+                    status_code=402,
+                    media_type="application/json",
+                )
+
+            asyncio.create_task(write_event(
+                "payment_verified",
+                uuid=payment_uuid,
+                tx_id=pull_tx_id,
+                tool=tool_path,
+                amount_tinybar=amount_tinybar,
+                payer=agent_account_id,
+                mode="allowance",
+            ))
+
+            request.state.payment_uuid = payment_uuid
+            request.state.payer_account_id = agent_account_id
+            request.state.amount_tinybar = amount_tinybar
+            request.state.original_tx_id = pull_tx_id
+
+            return await _execute_and_audit(
+                request, call_next, payment_uuid, agent_account_id,
+                amount_tinybar, pull_tx_id, tool_path, mode="allowance",
+            )
+
         receipt = request.headers.get("x402-payment-receipt")
 
-        # ── No receipt: issue 402 challenge ──────────────────────────────────
+        # ── Mode A: No receipt — issue 402 challenge ──────────────────────────
         if receipt is None:
             _prune_expired()
             ref = str(uuid4())
@@ -105,7 +195,7 @@ class X402Middleware(BaseHTTPMiddleware):
                 },
             )
 
-        # ── Receipt present: validate ─────────────────────────────────────────
+        # ── Mode A: Receipt present — validate ────────────────────────────────
         valid, invoice_uuid, reason, payer_account_id = await validate_payment_receipt(
             receipt, _pending, _consumed
         )
@@ -136,36 +226,7 @@ class X402Middleware(BaseHTTPMiddleware):
             payer=payer_account_id,
         ))
 
-        # ── Execute tool ──────────────────────────────────────────────────────
-        # Wrap call_next: Starlette propagates unhandled exceptions rather than
-        # returning a 500, so we must catch both paths.
-        try:
-            response = await call_next(request)
-            downstream_failed = response.status_code >= 500
-        except Exception as exc:
-            logger.error("Tool execution exception (uuid=%s): %s", invoice_uuid, exc)
-            downstream_failed = True
-            response = None
-
-        if downstream_failed:
-            asyncio.create_task(_handle_failure(
-                invoice_uuid,
-                payer_account_id,
-                amount_tinybar,
-                hedera_tx_id,
-                tool_path,
-            ))
-            return JSONResponse(
-                status_code=503,
-                content={"error": "downstream_failure", "refund_status": "dispatched"},
-            )
-
-        asyncio.create_task(write_event(
-            "tool_executed",
-            uuid=invoice_uuid,
-            tx_id=hedera_tx_id,
-            tool=tool_path,
-            amount_tinybar=amount_tinybar,
-            payer=payer_account_id,
-        ))
-        return response
+        return await _execute_and_audit(
+            request, call_next, invoice_uuid, payer_account_id,
+            amount_tinybar, hedera_tx_id, tool_path,
+        )
