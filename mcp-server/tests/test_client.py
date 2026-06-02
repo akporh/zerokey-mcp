@@ -13,6 +13,7 @@ Steps:
 
 import sys
 import time
+import unittest.mock
 import httpx
 from dotenv import load_dotenv
 import os
@@ -121,12 +122,68 @@ def step4_replay_protection(payment_receipt: str) -> None:
     print("✓ Replay correctly blocked")
 
 
+def step5_downstream_failure_triggers_refund() -> None:
+    _separator("Step 5 — Downstream failure + auto-refund")
+    import asyncio
+    from httpx import AsyncClient, ASGITransport
+
+    async def _run() -> tuple[int, dict]:
+        # Run in-process so unittest.mock.patch can reach the server's module.
+        # Both requests share the same module-level _pending/_consumed state.
+        import pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
+        from src.main import app
+
+        transport = ASGITransport(app=app)
+
+        # 5a: get fresh 402 invoice from in-process server
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            r = await client.post(
+                "/mcp/tools/execute-static-analysis",
+                json={"code": SAMPLE_CODE, "language": "python"},
+            )
+        assert r.status_code == 402, f"Expected 402, got {r.status_code}"
+        invoice = r.json()["invoice"]
+        print(f"Invoice reference: {invoice['reference']}")
+
+        # 5b: broadcast real payment to Hedera (sync SDK — run in executor)
+        loop = asyncio.get_event_loop()
+        tx_id = await loop.run_in_executor(None, step2_broadcast_payment, invoice)
+
+        # 5c: retry with receipt + mocked tool failure
+        payment_receipt = f"{tx_id}:{invoice['reference']}"
+        print("Waiting 5s for Mirror Node propagation...")
+        await asyncio.sleep(5)
+
+        with unittest.mock.patch(
+            "src.main.run_analysis",
+            side_effect=Exception("simulated upstream failure"),
+        ):
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                r = await client.post(
+                    "/mcp/tools/execute-static-analysis",
+                    json={"code": SAMPLE_CODE, "language": "python"},
+                    headers={"x402-Payment-Receipt": payment_receipt},
+                )
+        return r.status_code, r.json()
+
+    status_code, body = asyncio.run(_run())
+    print(f"Status: {status_code}")
+    assert status_code == 503, f"Expected 503, got {status_code}\nBody: {body}"
+    assert body.get("error") == "downstream_failure", f"Unexpected error field: {body}"
+    assert body.get("refund_status") == "dispatched", f"Unexpected refund_status: {body}"
+    print(f"Response: {body}")
+    print("✓ Downstream failure correctly detected — 503 returned, refund dispatched")
+    print(f"  Verify HCS on Hashscan: https://hashscan.io/testnet/topic/{os.environ.get('HCS_AUDIT_TOPIC_ID', '0.0.9120320')}")
+
+
 def main() -> None:
     print("\n=== x402 Pay-Per-Call End-to-End Test ===")
     invoice = step1_request_without_receipt()
     tx_id = step2_broadcast_payment(invoice)
     payment_receipt = step3_retry_with_receipt(tx_id, invoice)
     step4_replay_protection(payment_receipt)
+    step5_downstream_failure_triggers_refund()
     print("\n=== ALL STEPS PASSED ===\n")
 
 
