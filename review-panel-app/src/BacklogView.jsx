@@ -5,6 +5,7 @@ const C = {
   border: '#1e2d45', text: '#e2e8f0', muted: '#64748b',
   cyan: '#38bdf8', green: '#10b981', amber: '#f59e0b',
   red: '#ef4444', purple: '#a855f7', indigo: '#6366f1',
+  teal: '#14b8a6',
 };
 
 const P_COLOR = { P0: C.red, P1: C.amber, P2: C.cyan, P3: C.muted };
@@ -28,6 +29,7 @@ const EPICS = [
   { id: 'E6', label: 'Session Allowance Mode',        priority: 'P2', outcomes: ['O5'],       color: C.cyan },
   { id: 'E7', label: 'Secure Tool Registry',          priority: 'P2', outcomes: ['O1','O6'],  color: C.cyan },
   { id: 'E8', label: 'Human-in-the-Loop Gate',        priority: 'P3', outcomes: ['O1'],       color: C.muted },
+  { id: 'E9', label: 'Demo Observability',            priority: 'P2', outcomes: ['O3'],       color: C.teal },
 ];
 
 const STORIES = [
@@ -279,6 +281,34 @@ const STORIES = [
       'Price change in config takes effect on restart',
     ],
     outOfScope: 'Dynamic pricing, surge pricing',
+    blocks: '—',
+  },
+  // E9
+  {
+    id: 'S9.1', epic: 'E9', priority: 'P2', title: 'Hashscan Transaction Links in Simulation Log',
+    role: 'demo viewer / judge', want: 'to click through from a simulation log entry to the actual Hedera transaction on Hashscan',
+    outcome: 'I can independently verify the on-chain payment is real without needing to know how to construct a Hashscan URL',
+    ac: [
+      '[⬡ View Tx on Hashscan] link appears inline on the CryptoTransfer broadcast log line',
+      'Link opens https://hashscan.io/testnet/transaction/{tx_id} in a new tab',
+      'Link only appears on the log line that carries the tx_id — not on every log entry',
+      'Backend emits hashscan_tx_url in the SSE event detail; frontend extracts and renders it',
+    ],
+    outOfScope: 'Mainnet Hashscan URLs (testnet only at MVP), individual HCS message deep-links',
+    blocks: '—',
+  },
+  {
+    id: 'S9.2', epic: 'E9', priority: 'P2', title: 'HCS Audit Topic Deep-Link in Simulation Panel',
+    role: 'judge / auditor', want: 'a permanent link to the HCS audit topic visible before and during the simulation',
+    outcome: 'I can navigate to the complete on-chain audit trail at any point without waiting for a simulation run',
+    ac: [
+      '[⬡ HCS Audit Topic] link appears in the simulation panel header when server is live',
+      'Link opens https://hashscan.io/testnet/topic/{HCS_AUDIT_TOPIC_ID} in a new tab',
+      'Link is derived from serverStatus.hashscan_topic already returned by /demo/status',
+      '[⬡ View HCS Audit on Hashscan] link also appears inline on HCS log events during simulation runs',
+      'Header link is absent when server is offline',
+    ],
+    outOfScope: 'Per-message HCS deep-links, mainnet topic URLs',
     blocks: '—',
   },
   // E8

@@ -4,9 +4,9 @@ import { useNav } from './navContext';
 
 // Which epics belong to each phase
 const PHASE_EPICS = {
-  ALL: ['E1','E2','E3','E4','E5','E6','E7','E8'],
+  ALL: ['E1','E2','E3','E4','E5','E6','E7','E8','E9'],
   P1:  ['E1','E2','E3'],
-  P2:  ['E4','E5'],
+  P2:  ['E4','E5','E9'],
   P3:  ['E6','E7'],
   P4:  ['E8'],
 };
@@ -14,13 +14,13 @@ const PHASE_EPICS = {
 const EPIC_LABELS = {
   E1:'MCP Foundation', E2:'x402 Rail', E3:'Validation',
   E4:'HCS Audit',      E5:'Refund Hook', E6:'Allowance Mode',
-  E7:'Tool Registry',  E8:'Mainnet Gate',
+  E7:'Tool Registry',  E8:'Mainnet Gate', E9:'Demo Observability',
 };
 
 // Which phase an epic belongs to (for roadmap navigation)
 const EPIC_TO_PHASE = {
   E1:'P1', E2:'P1', E3:'P1',
-  E4:'P2', E5:'P2',
+  E4:'P2', E5:'P2', E9:'P2',
   E6:'P3', E7:'P3',
   E8:'P4',
 };
@@ -34,7 +34,7 @@ const C = {
 };
 
 const P_COLOR  = { P0: C.red, P1: C.amber, P2: C.cyan, P3: C.muted };
-const EPIC_CLR = { E1: C.red, E2: C.red, E3: C.red, E4: C.amber, E5: C.amber, E6: C.cyan, E7: C.cyan, E8: C.purple };
+const EPIC_CLR = { E1: C.red, E2: C.red, E3: C.red, E4: C.amber, E5: C.amber, E6: C.cyan, E7: C.cyan, E8: C.purple, E9: C.teal };
 
 const COLUMNS = [
   { id: 'backlog',    label: 'Backlog',     color: C.muted,   bg: '#0d1526' },
@@ -129,6 +129,14 @@ const ALL_STORIES = [
     role:'agent developer', want:'a second registered tool (OCR extraction)',
     ac:['Tool: ocr-extract','Accepts { file_url, output_format }','Returns text/structured data from upstream OCR API','Different .env key to code analysis tool'],
     phase:'P3', blocks:'—' },
+  { id:'S9.1', epic:'E9', priority:'P2', title:'Hashscan Transaction Links in Simulation Log',
+    role:'demo viewer / judge', want:'to click through from a simulation log entry to the actual Hedera transaction on Hashscan',
+    ac:['[⬡ View Tx on Hashscan] link appears inline on the CryptoTransfer broadcast log line','Link opens hashscan.io/testnet/transaction/{tx_id} in a new tab','Backend emits hashscan_tx_url in SSE event detail; frontend extracts and renders it','Link only appears on the log line that carries the tx_id'],
+    phase:'P2', blocks:'—' },
+  { id:'S9.2', epic:'E9', priority:'P2', title:'HCS Audit Topic Deep-Link in Simulation Panel',
+    role:'judge / auditor', want:'a permanent link to the HCS audit topic visible before and during simulation',
+    ac:['[⬡ HCS Audit Topic] link in header when server is live','Link opens hashscan.io/testnet/topic/{HCS_AUDIT_TOPIC_ID} in a new tab','Derived from serverStatus.hashscan_topic in /demo/status response','[⬡ View HCS Audit on Hashscan] also appears inline on HCS log events','Header link absent when server is offline'],
+    phase:'P2', blocks:'—' },
   { id:'S8.1', epic:'E8', priority:'P3', title:'Mainnet Authorization Prompt',
     role:'developer on mainnet', want:'agent to confirm before spending real HBAR',
     ac:['mainnet: prompts "Authorize X HBAR? (y/n)"','Pauses until y input','n → clean cancel, no broadcast','testnet: gate bypassed automatically'],
@@ -364,7 +372,7 @@ function ActivityFeed({ log }) {
 
 const PHASES = [
   { id: 'P1', label: 'Phase 1 — MVP Core',          color: C.red,    ids: ['S1.1','S1.2','S1.3','S2.1','S2.2','S3.1','S3.2','S2.3'] },
-  { id: 'P2', label: 'Phase 2 — Hackathon Complete', color: C.amber,  ids: ['S4.1','S4.2','S5.1','S5.2','S5.3'] },
+  { id: 'P2', label: 'Phase 2 — Hackathon Complete', color: C.amber,  ids: ['S4.1','S4.2','S5.1','S5.2','S5.3','S9.1','S9.2'] },
   { id: 'P3', label: 'Phase 3 — Differentiator',     color: C.cyan,   ids: ['S6.1','S6.2','S7.1','S7.3','S7.2'] },
   { id: 'P4', label: 'Phase 4 — Post-Hackathon',     color: C.purple, ids: ['S8.1'] },
 ];

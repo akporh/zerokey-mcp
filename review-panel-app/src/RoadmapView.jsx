@@ -6,6 +6,7 @@ const C = {
   border: '#1e2d45', text: '#e2e8f0', muted: '#64748b',
   cyan: '#38bdf8', green: '#10b981', amber: '#f59e0b',
   red: '#ef4444', purple: '#a855f7', indigo: '#6366f1',
+  teal: '#14b8a6',
 };
 
 const PHASES = [
@@ -42,9 +43,11 @@ const PHASES = [
       { id: 'S5.1', title: 'Detect Downstream Failure',       epic: 'E5' },
       { id: 'S5.2', title: 'Async Refund via CryptoTransfer', epic: 'E5' },
       { id: 'S5.3', title: 'HCS Logged Before + After Refund', epic: 'E5' },
+      { id: 'S9.1', title: 'Hashscan Tx Links in Simulation Log', epic: 'E9' },
+      { id: 'S9.2', title: 'HCS Audit Topic Deep-Link in Panel', epic: 'E9' },
     ],
     outcomes: ['O3', 'O4'],
-    deliverable: 'Hashscan shows live sequence: 402_issued → payment_verified → tool_executed. Downstream failure triggers automatic HBAR refund with HCS evidence.',
+    deliverable: 'Hashscan shows live sequence: 402_issued → payment_verified → tool_executed. Simulation panel links directly to each transaction and the HCS audit topic. Downstream failure triggers automatic HBAR refund with HCS evidence.',
   },
   {
     id: 'P3',
@@ -88,7 +91,7 @@ const OUTCOME_META = {
   O6: { label: 'Creds Never Exposed',color: C.red },
 };
 
-const EPIC_COLORS = { E1: C.red, E2: C.red, E3: C.red, E4: C.amber, E5: C.amber, E6: C.cyan, E7: C.cyan, E8: C.purple };
+const EPIC_COLORS = { E1: C.red, E2: C.red, E3: C.red, E4: C.amber, E5: C.amber, E6: C.cyan, E7: C.cyan, E8: C.purple, E9: C.teal };
 
 function OutcomePill({ id }) {
   const m = OUTCOME_META[id];
@@ -124,9 +127,9 @@ function GanttView() {
       </div>
 
       {/* Epic rows */}
-      {['E1','E2','E3','E4','E5','E6','E7','E8'].map(epicId => {
-        const epicLabels = { E1: 'MCP Foundation', E2: 'x402 Rail', E3: 'Validation', E4: 'HCS Audit', E5: 'Refund Hook', E6: 'Allowance Mode', E7: 'Tool Registry', E8: 'Mainnet Gate' };
-        const epicPhase = { E1: 0, E2: 0, E3: 0, E4: 1, E5: 1, E6: 2, E7: 2, E8: 3 };
+      {['E1','E2','E3','E4','E5','E6','E7','E8','E9'].map(epicId => {
+        const epicLabels = { E1: 'MCP Foundation', E2: 'x402 Rail', E3: 'Validation', E4: 'HCS Audit', E5: 'Refund Hook', E6: 'Allowance Mode', E7: 'Tool Registry', E8: 'Mainnet Gate', E9: 'Demo Observability' };
+        const epicPhase = { E1: 0, E2: 0, E3: 0, E4: 1, E5: 1, E6: 2, E7: 2, E8: 3, E9: 1 };
         const col = epicPhase[epicId];
         const color = EPIC_COLORS[epicId];
 

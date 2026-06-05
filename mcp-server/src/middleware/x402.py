@@ -36,6 +36,7 @@ async def _handle_failure(
     amount_tinybar: int,
     original_tx_id: str,
     tool: str,
+    mode: str | None = None,
 ) -> None:
     await write_event(
         "tool_failed",
@@ -44,6 +45,7 @@ async def _handle_failure(
         tool=tool,
         amount_tinybar=amount_tinybar,
         payer=payer_account_id,
+        mode=mode,
     )
     try:
         refund_tx_id = await dispatch_refund(
@@ -58,10 +60,11 @@ async def _handle_failure(
             tx_id=refund_tx_id,
             amount_tinybar=amount_tinybar,
             payer=payer_account_id,
+            mode=mode,
         )
     except Exception as exc:
         logger.error("Refund dispatch failed (uuid=%s): %s", payment_uuid, exc)
-        await write_event("refund_failed", uuid=payment_uuid, tx_id=original_tx_id, payer=payer_account_id)
+        await write_event("refund_failed", uuid=payment_uuid, tx_id=original_tx_id, payer=payer_account_id, mode=mode)
 
 
 async def _execute_and_audit(
@@ -84,7 +87,7 @@ async def _execute_and_audit(
 
     if downstream_failed:
         asyncio.create_task(_handle_failure(
-            payment_uuid, payer_account_id, amount_tinybar, tx_id, tool_path
+            payment_uuid, payer_account_id, amount_tinybar, tx_id, tool_path, mode
         ))
         return JSONResponse(
             status_code=503,
