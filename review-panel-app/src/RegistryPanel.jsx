@@ -13,6 +13,8 @@ const C = {
   input:   '#1e293b',
 }
 
+const EMPTY_FORM = { path: '', name: '', description: '', price_hbar: '', required_env_key: '', api_key_value: '' }
+
 function Badge({ set }) {
   return (
     <span style={{
@@ -75,7 +77,7 @@ function ToolRow({ tool, onSave }) {
         {tool.required_env_key || '—'}
       </td>
       <td style={{ padding: '10px 12px' }}>
-        <Badge set={tool.api_key_set} />
+        {tool.required_env_key ? <Badge set={tool.api_key_set} /> : <span style={{ color: C.muted, fontSize: 11 }}>internal</span>}
       </td>
       <td style={{ padding: '10px 12px' }}>
         {tool.required_env_key ? (
@@ -106,10 +108,91 @@ function ToolRow({ tool, onSave }) {
   )
 }
 
+function AddToolForm({ onAdded }) {
+  const [form, setForm]   = useState(EMPTY_FORM)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg]     = useState(null)
+
+  function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
+
+  async function handleAdd() {
+    if (!form.path.trim() || !form.name.trim() || !form.description.trim() || !form.price_hbar) {
+      setMsg({ ok: false, text: 'Path, name, description and price are required' })
+      return
+    }
+    setSaving(true)
+    setMsg(null)
+    const body = {
+      path: form.path.trim(),
+      name: form.name.trim(),
+      description: form.description.trim(),
+      price_hbar: parseFloat(form.price_hbar),
+    }
+    if (form.required_env_key.trim()) body.required_env_key = form.required_env_key.trim()
+    if (form.api_key_value.trim())    body.api_key_value    = form.api_key_value.trim()
+
+    try {
+      const res = await fetch('/admin/registry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error((await res.json()).detail || 'Error')
+      setForm(EMPTY_FORM)
+      setMsg({ ok: true, text: 'Tool added' })
+      onAdded()
+    } catch (e) {
+      setMsg({ ok: false, text: e.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const inp = (placeholder, field, opts = {}) => (
+    <input
+      placeholder={placeholder}
+      value={form[field]}
+      onChange={e => set(field, e.target.value)}
+      {...opts}
+      style={{ backgroundColor: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 4, padding: '5px 8px', fontFamily: 'monospace', fontSize: 12, ...(opts.style || {}) }}
+    />
+  )
+
+  return (
+    <div style={{ borderTop: `1px solid ${C.border}`, padding: '16px 16px 12px', backgroundColor: '#0a0f1e' }}>
+      <div style={{ fontSize: 11, color: C.amber, fontWeight: 700, marginBottom: 10, letterSpacing: '0.06em' }}>
+        + ADD TOOL
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        {inp('/mcp/tools/foo',   'path',            { style: { width: 180 } })}
+        {inp('name',             'name',            { style: { width: 120 } })}
+        {inp('description',      'description',     { style: { width: 220 } })}
+        {inp('price (HBAR)',     'price_hbar',      { type: 'number', step: '0.01', min: '0', style: { width: 90 } })}
+        {inp('env key (opt)',    'required_env_key',{ style: { width: 140 } })}
+        {inp('api key val (opt)','api_key_value',   { type: 'password', style: { width: 140 } })}
+        <button
+          onClick={handleAdd} disabled={saving}
+          style={{ backgroundColor: C.amber, color: '#000', border: 'none', borderRadius: 4, padding: '5px 16px', fontFamily: 'monospace', fontSize: 12, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, whiteSpace: 'nowrap' }}
+        >
+          {saving ? '…' : 'Add Tool'}
+        </button>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, color: C.muted }}>
+        ⚠ Middleware enforces payment on the new path immediately. A FastAPI handler must still be wired in <span style={{ color: C.amber }}>main.py</span> for tool execution to work.
+      </div>
+      {msg && (
+        <div style={{ marginTop: 6, fontSize: 11, fontFamily: 'monospace', color: msg.ok ? C.green : C.red }}>
+          {msg.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function RegistryPanel() {
-  const [tools, setTools]   = useState([])
+  const [tools, setTools]     = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError]   = useState(null)
+  const [error, setError]     = useState(null)
 
   async function fetchTools() {
     try {
@@ -127,7 +210,7 @@ export default function RegistryPanel() {
   useEffect(() => { fetchTools() }, [])
 
   return (
-    <div style={{ padding: '28px 32px', fontFamily: 'monospace', color: C.text, maxWidth: 900 }}>
+    <div style={{ padding: '28px 32px', fontFamily: 'monospace', color: C.text, maxWidth: 960 }}>
       <h2 style={{ color: C.cyan, margin: '0 0 4px', fontSize: 16, fontWeight: 800, letterSpacing: '0.04em' }}>
         Registry Admin
       </h2>
@@ -156,6 +239,7 @@ export default function RegistryPanel() {
               ))}
             </tbody>
           </table>
+          <AddToolForm onAdded={fetchTools} />
         </div>
       )}
     </div>

@@ -18,6 +18,15 @@ class RegistryPatchBody(BaseModel):
     api_key_value: Optional[str] = None
 
 
+class RegistryPostBody(BaseModel):
+    path: str
+    name: str
+    description: str
+    price_hbar: float
+    required_env_key: Optional[str] = None
+    api_key_value: Optional[str] = None
+
+
 def _tool_entry(path: str, entry: dict) -> dict:
     env_key = entry.get("required_env_key")
     return {
@@ -55,3 +64,23 @@ async def patch_tool(tool_name: str, body: RegistryPatchBody):
         set_key(str(_ENV_PATH), env_key, body.api_key_value)
 
     return {"ok": True, "path": path}
+
+
+@router.post("/registry")
+async def add_tool(body: RegistryPostBody):
+    if body.path in TOOL_REGISTRY:
+        raise HTTPException(status_code=409, detail=f"Tool '{body.path}' already exists")
+
+    TOOL_REGISTRY[body.path] = {
+        "name": body.name,
+        "description": body.description,
+        "price_hbar": body.price_hbar,
+        "required_env_key": body.required_env_key or None,
+    }
+    save_registry()
+
+    if body.api_key_value and body.required_env_key:
+        os.environ[body.required_env_key] = body.api_key_value
+        set_key(str(_ENV_PATH), body.required_env_key, body.api_key_value)
+
+    return {"ok": True, "path": body.path}

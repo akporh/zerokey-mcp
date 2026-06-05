@@ -29,7 +29,7 @@ async def health():
 async def list_tools():
     return {
         "tools": [
-            {"name": entry["name"], "description": entry["description"]}
+            {"name": entry["name"], "description": entry["description"], "price_hbar": entry["price_hbar"]}
             for entry in TOOL_REGISTRY.values()
         ]
     }
