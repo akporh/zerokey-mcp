@@ -13,6 +13,7 @@ from src.allowance.pull import dispatch_allowance_pull
 from src.audit.hcs import write_event
 from src.config import settings
 from src.refund.transfer import dispatch_refund
+from src.registry import TOOL_REGISTRY
 from src.validation.receipt import validate_payment_receipt
 
 logger = logging.getLogger(__name__)
@@ -118,7 +119,10 @@ class X402Middleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         tool_path = request.url.path
-        amount_tinybar = round(float(settings["TOOL_PRICE_HBAR"]) * 100_000_000)
+        if tool_path not in TOOL_REGISTRY:
+            return JSONResponse(status_code=404, content={"error": "tool_not_found"})
+        price_hbar = TOOL_REGISTRY[tool_path]["price_hbar"]
+        amount_tinybar = round(price_hbar * 100_000_000)
 
         # ── Mode B: Allowance path ────────────────────────────────────────────
         if request.headers.get("x-allowance") == "true":
@@ -170,7 +174,7 @@ class X402Middleware(BaseHTTPMiddleware):
             _prune_expired()
             ref = str(uuid4())
             _pending[ref] = {
-                "amount_hbar": settings["TOOL_PRICE_HBAR"],
+                "amount_hbar": price_hbar,
                 "expires_at": time.time() + UUID_TTL_SECONDS,
             }
             asyncio.create_task(write_event(
@@ -183,7 +187,7 @@ class X402Middleware(BaseHTTPMiddleware):
                 "error": "payment_required",
                 "invoice": {
                     "account": settings["HEDERA_SERVER_ACCOUNT_ID"],
-                    "amount": settings["TOOL_PRICE_HBAR"],
+                    "amount": str(price_hbar),
                     "reference": ref,
                 },
             }
@@ -193,7 +197,7 @@ class X402Middleware(BaseHTTPMiddleware):
                 media_type="application/json",
                 headers={
                     "x402-Invoice-Account": settings["HEDERA_SERVER_ACCOUNT_ID"],
-                    "x402-Invoice-Amount": settings["TOOL_PRICE_HBAR"],
+                    "x402-Invoice-Amount": str(price_hbar),
                     "x402-Invoice-Reference": ref,
                 },
             )

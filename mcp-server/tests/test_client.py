@@ -188,7 +188,7 @@ def step6_allowance_mode() -> None:
         AccountId.from_string(AGENT_ACCOUNT_ID),
         PrivateKey.from_string(AGENT_PRIVATE_KEY),
     )
-    total_hbar = float(os.environ["TOOL_PRICE_HBAR"]) * 6
+    total_hbar = 0.50 * 6  # static-analysis price × 6 calls
     (
         AccountAllowanceApproveTransaction()
         .approve_hbar_allowance(
@@ -217,6 +217,41 @@ def step6_allowance_mode() -> None:
     print(f"  Verify HCS: https://hashscan.io/testnet/topic/{os.environ.get('HCS_AUDIT_TOPIC_ID')}")
 
 
+def step7_ocr_mode_a() -> None:
+    _separator("Step 7 — OCR tool, Mode A (per-call)")
+    ocr_endpoint = f"{SERVER_URL}/mcp/tools/ocr-extract"
+    image_url = "https://tesseract.projectnaptha.com/img/eng_bw.png"
+
+    # 7a: Get 402 challenge — invoice must be 0.25 HBAR
+    r = httpx.post(ocr_endpoint, json={"image_url": image_url})
+    assert r.status_code == 402, f"Expected 402, got {r.status_code}"
+    invoice = r.json()["invoice"]
+    assert float(invoice["amount"]) == 0.25, f"Expected 0.25 HBAR, got {invoice['amount']}"
+    print(f"Invoice amount: {invoice['amount']} HBAR ✓")
+
+    # 7b: Broadcast payment
+    tx_id = step2_broadcast_payment(invoice)
+
+    # 7c: Retry with receipt
+    print("Waiting 5s for Mirror Node propagation...")
+    time.sleep(5)
+    payment_receipt = f"{tx_id}:{invoice['reference']}"
+    r = httpx.post(
+        ocr_endpoint,
+        json={"image_url": image_url},
+        headers={"x402-Payment-Receipt": payment_receipt},
+    )
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}\nBody: {r.text}"
+    result = r.json()
+    assert result.get("tool") == "ocr-extract", f"Unexpected tool field: {result.get('tool')}"
+    assert isinstance(result.get("text"), str) and len(result["text"]) > 0, "text field empty"
+    assert isinstance(result.get("word_count"), int) and result["word_count"] > 0
+    print(f"Extracted text (first 80 chars): {result['text'][:80]}")
+    print(f"Word count: {result['word_count']}")
+    print("✓ OCR tool: Mode A call returned 200 with non-empty text")
+    print(f"  Verify HCS: https://hashscan.io/testnet/topic/{os.environ.get('HCS_AUDIT_TOPIC_ID')}")
+
+
 def main() -> None:
     print("\n=== x402 Pay-Per-Call End-to-End Test ===")
     invoice = step1_request_without_receipt()
@@ -225,6 +260,7 @@ def main() -> None:
     step4_replay_protection(payment_receipt)
     step5_downstream_failure_triggers_refund()
     step6_allowance_mode()
+    step7_ocr_mode_a()
     print("\n=== ALL STEPS PASSED ===\n")
 
 

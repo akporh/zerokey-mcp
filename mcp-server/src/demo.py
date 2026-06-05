@@ -19,6 +19,9 @@ from hiero_sdk_python import (
 from pydantic import BaseModel
 
 from src.config import settings
+from src.registry import TOOL_REGISTRY
+
+_STATIC_ANALYSIS_PRICE_HBAR: float = TOOL_REGISTRY["/mcp/tools/execute-static-analysis"]["price_hbar"]
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -66,7 +69,7 @@ def _approve_allowance_sync() -> None:
         .approve_hbar_allowance(
             AccountId.from_string(_AGENT_ACCOUNT_ID),
             AccountId.from_string(settings["HEDERA_SERVER_ACCOUNT_ID"]),
-            Hbar(float(settings["TOOL_PRICE_HBAR"])),
+            Hbar(_STATIC_ANALYSIS_PRICE_HBAR),
         )
         .execute(c)
     )
@@ -101,7 +104,7 @@ async def _stream_allowance(code: str, inject_failure: bool):
         return
 
     yield _sse("allowance_check",
-               f"Allowance approved: {settings['TOOL_PRICE_HBAR']} HBAR → server {settings['HEDERA_SERVER_ACCOUNT_ID']}")
+               f"Allowance approved: {_STATIC_ANALYSIS_PRICE_HBAR} HBAR → server {settings['HEDERA_SERVER_ACCOUNT_ID']}")
     yield _sse("hcs_log", "Dispatching approved CryptoTransfer pull from agent account...")
 
     headers: dict = {"x-allowance": "true", "x-agent-account": _AGENT_ACCOUNT_ID}
@@ -177,7 +180,7 @@ async def demo_status():
         "agent_account": _AGENT_ACCOUNT_ID or "not_configured",
         "hcs_topic": settings["HCS_AUDIT_TOPIC_ID"],
         "network": settings["HEDERA_NETWORK"],
-        "tool_price_hbar": settings["TOOL_PRICE_HBAR"],
+        "tool_price_hbar": _STATIC_ANALYSIS_PRICE_HBAR,
         "hashscan_topic": f"https://hashscan.io/testnet/topic/{settings['HCS_AUDIT_TOPIC_ID']}",
     }
 

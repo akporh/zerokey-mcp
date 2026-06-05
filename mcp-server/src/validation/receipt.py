@@ -48,7 +48,7 @@ async def validate_payment_receipt(
         return False, None, "tx_not_success", None
 
     # Check 2 — correct destination and exact amount
-    expected_tinybars = round(float(settings["TOOL_PRICE_HBAR"]) * TINYBARS_PER_HBAR)
+    expected_tinybars = round(float(pending_entry["amount_hbar"]) * TINYBARS_PER_HBAR)
     server_account = settings["HEDERA_SERVER_ACCOUNT_ID"]
     raw_transfers = tx.get("transfers", [])
     transfers = {t["account"]: t["amount"] for t in raw_transfers}

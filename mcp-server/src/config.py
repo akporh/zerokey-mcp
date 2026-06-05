@@ -9,7 +9,6 @@ REQUIRED_KEYS = [
     "HEDERA_SERVER_PRIVATE_KEY",
     "HCS_AUDIT_TOPIC_ID",
     "MIRROR_NODE_URL",
-    "TOOL_PRICE_HBAR",
 ]
 
 for _key in REQUIRED_KEYS:
@@ -17,3 +16,10 @@ for _key in REQUIRED_KEYS:
         raise RuntimeError(f"Required environment variable not set: {_key}")
 
 settings = {key: os.getenv(key) for key in REQUIRED_KEYS}
+
+from src.registry import TOOL_REGISTRY  # noqa: E402 — after dotenv load
+
+for _entry in TOOL_REGISTRY.values():
+    _key = _entry.get("required_env_key")
+    if _key and not os.getenv(_key):
+        raise RuntimeError(f"Required environment variable not set: {_key}")

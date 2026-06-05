@@ -58,12 +58,11 @@ def write_env(values: dict):
         "# HCS",
         f"HCS_AUDIT_TOPIC_ID={values['hcs_topic_id']}",
         "",
-        "# Upstream Premium APIs (fill in when you have them)",
+        "# Upstream Premium APIs",
         "CODE_ANALYSIS_API_KEY=",
-        "OCR_API_KEY=",
+        "OCR_SPACE_API_KEY=",
         "",
         "# Server Config",
-        "TOOL_PRICE_HBAR=0.50000000",
         "PORT=8000",
     ]
     ENV_PATH.write_text("\n".join(lines) + "\n")
