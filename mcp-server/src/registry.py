@@ -1,4 +1,10 @@
-TOOL_REGISTRY: dict[str, dict] = {
+import copy
+import json
+import pathlib
+
+_STATE_FILE = pathlib.Path(__file__).parent.parent / "registry_state.json"
+
+_DEFAULTS: dict[str, dict] = {
     "/mcp/tools/execute-static-analysis": {
         "name": "execute-static-analysis",
         "description": (
@@ -15,3 +21,18 @@ TOOL_REGISTRY: dict[str, dict] = {
         "required_env_key": "OCR_SPACE_API_KEY",
     },
 }
+
+
+def _load() -> dict[str, dict]:
+    if _STATE_FILE.exists():
+        with open(_STATE_FILE) as f:
+            return json.load(f)
+    return copy.deepcopy(_DEFAULTS)
+
+
+def save_registry() -> None:
+    with open(_STATE_FILE, "w") as f:
+        json.dump(TOOL_REGISTRY, f, indent=2)
+
+
+TOOL_REGISTRY: dict[str, dict] = _load()

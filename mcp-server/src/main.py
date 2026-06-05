@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from src.admin.router import router as admin_router
 from src.config import settings  # noqa: F401 — triggers .env load + validation at startup
 from src.demo import router as demo_router
 from src.middleware.x402 import X402Middleware
@@ -16,6 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(demo_router, prefix="/demo")
+app.include_router(admin_router, prefix="/admin")
 
 
 @app.get("/health")

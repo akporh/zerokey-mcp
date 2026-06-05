@@ -4,6 +4,7 @@ import ArchitectureDocs from './ArchitectureDocs'
 import BacklogView from './BacklogView'
 import RoadmapView from './RoadmapView'
 import KanbanView from './KanbanView'
+import RegistryPanel from './RegistryPanel'
 import { useStore } from './storeContext'
 import { NavContext } from './navContext'
 
@@ -12,7 +13,8 @@ const TABS = [
   { id: 'roadmap', label: 'Roadmap'          },
   { id: 'backlog', label: 'Backlog'          },
   { id: 'docs',    label: 'Architecture Doc' },
-  { id: 'sim',     label: 'Simulation Panel' },
+  { id: 'sim',      label: 'Simulation Panel' },
+  { id: 'registry', label: 'Registry'         },
 ]
 
 function TopBar({ tab, onTabClick }) {
@@ -79,6 +81,11 @@ export default function App() {
           {tab === 'roadmap' && <RoadmapView  jumpToPhase={navPhaseId} />}
           {tab === 'backlog' && <BacklogView  jumpToStory={navStoryId} />}
           {tab === 'docs'    && <ArchitectureDocs />}
+          {tab === 'registry' && (
+            <div style={{ height: '100%', overflowY: 'auto' }}>
+              <RegistryPanel />
+            </div>
+          )}
           {tab === 'sim'     && (
             <div style={{ height: '100%', overflowY: 'auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '32px 24px' }}>
               <ArchitectureReviewPanel />
