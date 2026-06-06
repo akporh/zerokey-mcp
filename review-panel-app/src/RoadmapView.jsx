@@ -60,15 +60,34 @@ const PHASES = [
       { id: 'S6.1', title: 'Server Detects Allowance Header', epic: 'E6' },
       { id: 'S6.2', title: 'Pull Payment via Allowance Tool', epic: 'E6' },
       { id: 'S7.1', title: 'Config-Driven Tool Registry',     epic: 'E7' },
-      { id: 'S7.3', title: 'Per-Tool Pricing',                epic: 'E7' },
+      { id: 'S7.3', title: 'Per-Invoice Price Validation (Refund Fix)', epic: 'E7' },
       { id: 'S7.2', title: 'OCR Extraction Tool',             epic: 'E7' },
+      { id: 'S7.4', title: 'Non-Blocking Tool Execution (Thread Pool)', epic: 'E7' },
+      { id: 'S7.5', title: 'Mirror Node-Backed Replay Protection', epic: 'E7' },
     ],
     outcomes: ['O5'],
-    deliverable: 'Agent pre-approves 20 HBAR allowance. 10 back-to-back tool calls complete with zero 402 interrupts. Two distinct tools (code analysis + OCR) available from config.',
+    deliverable: 'Agent pre-approves 20 HBAR allowance. 10 back-to-back tool calls complete with zero 402 interrupts. Two distinct tools available from config. Concurrent users no longer stall the server. Replay attack protection survives server restart.',
   },
   {
     id: 'P4',
     label: 'Phase 4',
+    title: 'Demo Ready',
+    subtitle: 'Installable MCP — judge runs the demo in 2 minutes',
+    color: C.green,
+    goal: 'Any developer installs ZeroKey as an MCP server in Claude Desktop via one config block. Agent pays per call in HBAR. No API keys. No shim. End-to-end demo that proves the thesis.',
+    stories: [
+      { id: 'S10.1', title: 'MCP Server Entry Point',                   epic: 'E10' },
+      { id: 'S10.2', title: 'scan_code Tool with x402 Payment Flow',    epic: 'E10' },
+      { id: 'S10.3', title: 'Wallet Config via MCP Config Block',       epic: 'E10' },
+      { id: 'S10.4', title: 'Claude Desktop Installation Config',       epic: 'E10' },
+      { id: 'S10.5', title: 'End-to-End Demo Script (DEMO.md)',         epic: 'E10' },
+    ],
+    outcomes: ['O1', 'O7'],
+    deliverable: 'Judge clones repo, adds 3 env values to claude_desktop_config.json, restarts Claude Desktop. Asks Claude to scan code. ZeroKey pays 0.5 HBAR, returns findings. HCS audit trail verifiable on Hashscan. Zero API keys configured.',
+  },
+  {
+    id: 'P5',
+    label: 'Phase 5',
     title: 'Post-Hackathon',
     subtitle: 'Mainnet safety + production hardening',
     color: C.purple,
@@ -89,9 +108,10 @@ const OUTCOME_META = {
   O4: { label: 'Funds Protected',   color: C.amber },
   O5: { label: 'Loop Uninterrupted',color: C.indigo },
   O6: { label: 'Creds Never Exposed',color: C.red },
+  O7: { label: 'Installable in Minutes', color: C.teal },
 };
 
-const EPIC_COLORS = { E1: C.red, E2: C.red, E3: C.red, E4: C.amber, E5: C.amber, E6: C.cyan, E7: C.cyan, E8: C.purple, E9: C.teal };
+const EPIC_COLORS = { E1: C.red, E2: C.red, E3: C.red, E4: C.amber, E5: C.amber, E6: C.cyan, E7: C.cyan, E8: C.purple, E9: C.teal, E10: C.green };
 
 function OutcomePill({ id }) {
   const m = OUTCOME_META[id];
@@ -127,9 +147,9 @@ function GanttView() {
       </div>
 
       {/* Epic rows */}
-      {['E1','E2','E3','E4','E5','E6','E7','E8','E9'].map(epicId => {
-        const epicLabels = { E1: 'MCP Foundation', E2: 'x402 Rail', E3: 'Validation', E4: 'HCS Audit', E5: 'Refund Hook', E6: 'Allowance Mode', E7: 'Tool Registry', E8: 'Mainnet Gate', E9: 'Demo Observability' };
-        const epicPhase = { E1: 0, E2: 0, E3: 0, E4: 1, E5: 1, E6: 2, E7: 2, E8: 3, E9: 1 };
+      {['E1','E2','E3','E4','E5','E6','E7','E8','E9','E10'].map(epicId => {
+        const epicLabels = { E1: 'MCP Foundation', E2: 'x402 Rail', E3: 'Validation', E4: 'HCS Audit', E5: 'Refund Hook', E6: 'Allowance Mode', E7: 'Tool Registry', E8: 'Mainnet Gate', E9: 'Demo Observability', E10: 'MCP Client Wrapper' };
+        const epicPhase = { E1: 0, E2: 0, E3: 0, E4: 1, E5: 1, E6: 2, E7: 2, E8: 4, E9: 1, E10: 3 };
         const col = epicPhase[epicId];
         const color = EPIC_COLORS[epicId];
 

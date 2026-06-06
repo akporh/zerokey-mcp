@@ -18,6 +18,7 @@ const OUTCOMES = [
   { id: 'O4', label: 'Agent Funds Protected', desc: 'Refund dispatched within 5s of confirmed downstream failure', color: C.amber },
   { id: 'O5', label: 'Iterative Loops Uninterrupted', desc: '10 back-to-back tool calls with zero 402 interrupts in allowance mode', color: C.indigo },
   { id: 'O6', label: 'Credentials Never Exposed', desc: 'No API key appears in any response body or header', color: C.red },
+  { id: 'O7', label: 'Installable in Minutes', desc: 'Developer installs MCP server via one config block in Claude Desktop — coding agent pays for tools with zero additional setup', color: C.teal },
 ];
 
 const EPICS = [
@@ -30,6 +31,7 @@ const EPICS = [
   { id: 'E7', label: 'Secure Tool Registry',          priority: 'P2', outcomes: ['O1','O6'],  color: C.cyan },
   { id: 'E8', label: 'Human-in-the-Loop Gate',        priority: 'P3', outcomes: ['O1'],       color: C.muted },
   { id: 'E9', label: 'Demo Observability',            priority: 'P2', outcomes: ['O3'],       color: C.teal },
+  { id: 'E10', label: 'MCP Client Wrapper & Demo',   priority: 'P1', outcomes: ['O1','O7'],  color: C.green },
 ];
 
 const STORIES = [
@@ -272,15 +274,49 @@ const STORIES = [
     blocks: '—',
   },
   {
-    id: 'S7.3', epic: 'E7', priority: 'P2', title: 'Per-Tool Pricing',
-    role: 'tool provider', want: 'to set a different price per tool',
-    outcome: 'expensive upstream APIs can charge more than cheap ones',
+    id: 'S7.3', epic: 'E7', priority: 'P0', title: 'Per-Invoice Price Validation in Refund Path',
+    role: 'developer using a multi-priced tool', want: 'the refund calculation to use the price I was actually charged',
+    outcome: 'a failed tool call triggers the correct refund amount regardless of which tool I called',
     ac: [
       'price_hbar field in tool config drives the x402-Invoice-Amount value',
-      'Invoice amount reflects the specific tool being called',
-      'Price change in config takes effect on restart',
+      'Invoice amount reflects the specific tool being called — not a flat server-wide rate',
+      'receipt.py:51 reads pending_entry["amount_hbar"] — not settings["TOOL_PRICE_HBAR"]',
+      'TOOL_PRICE_HBAR retired from config.py REQUIRED_KEYS and all 5 reference sites (config.py:12, x402.py:118, x402.py:170, x402.py:183, x402.py:193)',
+      'Tool at 0.5 HBAR and tool at 2 HBAR each trigger refunds at their own price — not a global default',
+      'Existing refund flow (HCS tool_failed before refund dispatched) is unchanged',
+      'All tests pass; refund scenario uses invoice amount, not the env var',
     ],
-    outOfScope: 'Dynamic pricing, surge pricing',
+    outOfScope: 'Dynamic pricing, time-based pricing, discount logic',
+    blocks: '—',
+  },
+  {
+    id: 'S7.4', epic: 'E7', priority: 'P0', title: 'Non-Blocking Tool Execution (Thread Pool)',
+    role: 'developer using the x402 proxy', want: 'the server to handle multiple concurrent tool calls without stalling',
+    outcome: 'my agent is not blocked by another user\'s slow code-scan running on the same server',
+    ac: [
+      'Blocking code-analysis scan runs via asyncio.run_in_executor (thread pool) — not inline on the event loop',
+      'While a code-scan is in progress, a second concurrent request begins processing immediately — no queue stall',
+      'Thread pool is bounded (default ThreadPoolExecutor or explicit limit) — unbounded threads not acceptable',
+      'Response time for non-blocking endpoints (e.g. /health, 402 challenge) is unaffected while a scan is running',
+      'All existing tests pass; no change to tool response schema',
+    ],
+    outOfScope: 'Worker queues, job IDs, webhook callbacks, rate limiting per account',
+    blocks: '—',
+  },
+  {
+    id: 'S7.5', epic: 'E7', priority: 'P0', title: 'Mirror Node-Backed Replay Protection',
+    role: 'tool provider', want: 'receipt replay detection to survive server restarts',
+    outcome: 'a bad actor cannot reuse an old payment receipt after the server reboots to get free tool calls',
+    ac: [
+      'In-memory used_invoices set removed as sole replay guard',
+      'On every receipt validation, Mirror Node queried for prior confirmed transactions whose memo matches the invoice UUID',
+      'If Mirror Node returns >=1 confirmed tx with that UUID memo (not the current tx), receipt rejected with 402 / duplicate_invoice',
+      'If Mirror Node query fails (timeout/5xx), system fails closed — receipt rejected, not accepted',
+      'Server restart followed by resubmission of an already-used receipt is rejected correctly',
+      'Mirror Node query is async (httpx async client) — does not block the event loop',
+      'Existing triple-check (tx.status + destination + UUID memo) is preserved — this is an additional check',
+    ],
+    outOfScope: 'Persistent local cache, database, Redis — ledger is the source of truth',
     blocks: '—',
   },
   // E9
@@ -309,6 +345,76 @@ const STORIES = [
       'Header link is absent when server is offline',
     ],
     outOfScope: 'Per-message HCS deep-links, mainnet topic URLs',
+    blocks: '—',
+  },
+  // E10
+  {
+    id: 'S10.1', epic: 'E10', priority: 'P1', title: 'MCP Server Entry Point',
+    role: 'developer', want: 'to install ZeroKey as an MCP server in Claude Desktop',
+    outcome: 'my coding agent can discover and call its tools without any additional tooling',
+    ac: [
+      'mcp-server/src/mcp_server.py is a valid MCP stdio server using the Python MCP SDK',
+      'Server registers scan_code and returns it in the MCP tool-list response',
+      'Running python -m mcp_server from mcp-server/ starts the server without error',
+      'MCP server calls FastAPI proxy over HTTP (localhost) — wrapper, not a rewrite',
+      'Existing main.py FastAPI proxy is untouched — both run independently',
+    ],
+    outOfScope: 'Replacing or merging the FastAPI server. Cursor or other agent hosts.',
+    blocks: 'S10.2, S10.3, S10.4',
+  },
+  {
+    id: 'S10.2', epic: 'E10', priority: 'P1', title: 'scan_code Tool with Embedded x402 Payment Flow',
+    role: 'coding agent (Claude)', want: 'to call scan_code with a code snippet',
+    outcome: 'I receive vulnerability findings without a visible payment step or API key',
+    ac: [
+      'MCP tool scan_code accepts { "code": str, "language": str } input',
+      'On invocation: MCP server sends request to FastAPI proxy',
+      'If 402 received: extracts invoice, submits HBAR payment via Agent Kit, retries — no 402 visible to Claude',
+      'If payment succeeds: returns structured findings JSON to Claude',
+      'If payment fails: returns { "error": "payment_failed", "reason": "..." } — does not hang',
+      'If proxy unreachable: returns { "error": "proxy_unavailable" } within 5 seconds',
+    ],
+    outOfScope: 'Additional tools (OCR etc.) in this sprint. scan_code only.',
+    blocks: 'S10.5',
+  },
+  {
+    id: 'S10.3', epic: 'E10', priority: 'P1', title: 'Wallet Configuration via MCP Config Block',
+    role: 'developer', want: 'to configure my HBAR keys once in the MCP config block',
+    outcome: 'payment happens automatically on every tool call with no separate wallet setup',
+    ac: [
+      'MCP server reads HEDERA_ACCOUNT_ID, HEDERA_PRIVATE_KEY, HEDERA_NETWORK from env (via Claude Desktop MCP config env block)',
+      'Server refuses to start and logs a clear error if any required key is missing',
+      'Keys are never echoed in tool responses, MCP metadata, or log output',
+      'Developer requires no separate .env file — MCP config block is the single source',
+    ],
+    outOfScope: 'Key rotation, multi-account, passkey-backed wallets.',
+    blocks: 'S10.4',
+  },
+  {
+    id: 'S10.4', epic: 'E10', priority: 'P1', title: 'Claude Desktop Installation Config',
+    role: 'hackathon judge', want: 'a single config block I can paste into Claude Desktop',
+    outcome: 'the MCP server is installed and the demo is ready in under 2 minutes',
+    ac: [
+      'client/claude_desktop_config.json exists with working MCP server entry (command, args, env placeholders)',
+      'README "Judge Setup" section: clone → 3 env values → paste config → restart Claude Desktop → done (5 steps max)',
+      'Config manually verified on a clean Claude Desktop install before submission',
+      'Judges need zero knowledge of the Python MCP SDK to run the demo',
+    ],
+    outOfScope: 'Cursor, Copilot, or any other agent host. Claude Desktop only.',
+    blocks: 'S10.5',
+  },
+  {
+    id: 'S10.5', epic: 'E10', priority: 'P1', title: 'End-to-End Demo Script (DEMO.md)',
+    role: 'judge evaluating the submission', want: 'a scripted demo walkthrough with expected outputs',
+    outcome: 'I can verify the system works and understand what I am seeing at each step',
+    ac: [
+      'DEMO.md at repo root includes the exact Claude prompt to trigger the flow',
+      'Expected output documented: what Claude says, ~2–3s wait, what findings look like',
+      'On-chain verification step: judge navigates to Hashscan HCS topic to see audit trail',
+      'Demo uses committed dummy file demo/vulnerable_code.py — not the judge\'s own code',
+      'Hashscan link to live HCS audit topic embedded in DEMO.md',
+    ],
+    outOfScope: 'Video recording, slide deck.',
     blocks: '—',
   },
   // E8

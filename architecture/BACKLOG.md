@@ -375,18 +375,66 @@ These are the measurable success states. Every story must trace back to one of t
 
 ---
 
-### S7.3 — Per-Tool Pricing
+### S7.3 — Per-Invoice Price Validation in Refund Path *(Sprint 8 — MANDATORY FIX)*
 
-**As a** tool provider,  
-**I want** to set a different price per tool,  
-**So that** expensive upstream APIs can charge more than cheap ones.
+**As a** developer using a multi-priced tool,  
+**I want** the refund calculation to use the price I was actually charged,  
+**So that** a failed tool call triggers the correct refund amount regardless of which tool I called.
 
 **Acceptance Criteria:**
 - `price_hbar` field in tool config drives the `x402-Invoice-Amount` value
 - Invoice amount reflects the specific tool being called — not a flat server-wide rate
-- Price change in config takes effect on restart
+- `receipt.py:51` reads `pending_entry["amount_hbar"]` — not `settings["TOOL_PRICE_HBAR"]`
+- `TOOL_PRICE_HBAR` retired from `config.py` REQUIRED_KEYS and all 5 reference sites (`config.py:12`, `x402.py:118`, `x402.py:170`, `x402.py:183`, `x402.py:193`)
+- Tool at 0.5 HBAR and tool at 2 HBAR each trigger refunds at their own price — not a global default
+- Existing refund flow (HCS `tool_failed` before refund dispatched) is unchanged
+- All tests pass; refund scenario uses invoice amount, not the env var
 
-**Priority:** P2.
+**Out of scope:** Dynamic pricing, time-based pricing, discount logic.
+
+**Priority:** P0 — mathematical bug in the refund path. Breaks multi-tool demos.
+
+---
+
+### S7.4 — Non-Blocking Tool Execution (Thread Pool) *(Sprint 8 — Judge Feedback)*
+
+**As a** developer using the x402 proxy,  
+**I want** the server to handle multiple concurrent tool calls without stalling,  
+**So that** my agent is not blocked by another user's slow code-scan running on the same server.
+
+**Acceptance Criteria:**
+- Blocking code-analysis scan runs via `asyncio.run_in_executor` (thread pool) — not inline on the event loop
+- While a code-scan is in progress, a second concurrent request begins processing immediately — no queue stall
+- Thread pool is bounded (default `ThreadPoolExecutor` or explicit limit) — unbounded threads not acceptable
+- Response time for non-blocking endpoints (e.g. `/health`, 402 challenge) is unaffected while a scan is running
+- All existing tests pass; no change to tool response schema
+
+**Out of scope:** Worker queues, job IDs, webhook callbacks, rate limiting per account.
+
+**Priority:** P0 — blocking event loop causes full server stall under concurrent load. Disqualifying under stress.
+
+---
+
+### S7.5 — Mirror Node-Backed Replay Protection *(Sprint 8 — Judge Feedback)*
+
+**As a** tool provider,  
+**I want** receipt replay detection to survive server restarts,  
+**So that** a bad actor cannot reuse an old payment receipt after the server reboots to get free tool calls.
+
+**Acceptance Criteria:**
+- In-memory `used_invoices` set removed as sole replay guard
+- On every receipt validation, Mirror Node queried for prior confirmed transactions whose memo matches the invoice UUID
+- If Mirror Node returns ≥1 confirmed tx with that UUID memo (not the current tx), receipt rejected with `402 / duplicate_invoice`
+- If Mirror Node query fails (timeout/5xx), system fails closed — receipt rejected, not accepted
+- Server restart followed by resubmission of an already-used receipt is rejected correctly
+- Mirror Node query is async (`httpx` async client) — does not block the event loop
+- Existing triple-check (tx.status + destination + UUID memo) is preserved — this is an additional check
+
+**Out of scope:** Persistent local cache, database, Redis — ledger is the source of truth.
+
+**Priority:** P0 — replay attack trivially demonstrable after server restart. Kills the "trustless" claim at the centre of the pitch.
+
+**Open Question:** Mirror Node query latency on testnet — if p95 > 3s, use 3s timeout + fail-closed and document the tradeoff.
 
 ---
 
@@ -434,9 +482,11 @@ Full ordered list. Top = implement first.
 | 14 | S6.1 — Server Detects Allowance Header | E6 | P2 | S6.2 |
 | 15 | S6.2 — Server Pulls Payment via Allowance Tool | E6 | P2 | — |
 | 16 | S7.1 — Config-Driven Tool Registration | E7 | P2 | S7.2, S7.3 |
-| 17 | S7.3 — Per-Tool Pricing | E7 | P2 | S7.2 |
-| 18 | S7.2 — OCR Extraction Tool | E7 | P2 | — |
-| 19 | S8.1 — Mainnet Authorization Prompt | E8 | P3 | — |
+| 17 | S7.3 — Per-Invoice Price Validation (Refund Fix) | E7 | P0 | — |
+| 18 | S7.4 — Non-Blocking Tool Execution (Thread Pool) | E7 | P0 | — |
+| 19 | S7.5 — Mirror Node-Backed Replay Protection | E7 | P0 | — |
+| 20 | S7.2 — OCR Extraction Tool | E7 | P2 | — |
+| 21 | S8.1 — Mainnet Authorization Prompt | E8 | P3 | — |
 
 ---
 
@@ -448,3 +498,126 @@ Stories 14–18 are differentiators for a standout submission.
 Story 19 is post-hackathon / mainnet only.
 
 **MVP = Stories 1–13. Target: runnable on testnet with Hashscan-verifiable audit trail.**
+
+---
+
+## Epic E10 — MCP Client Wrapper & Installable Demo
+
+> Turns the project from a server-side proxy into something a developer installs in 60 seconds. This is the demo. Without it, judges have to run a manual shim to experience the value prop.
+
+### S10.1 — MCP Server Entry Point
+
+**As a** developer,  
+**I want** to install ZeroKey as an MCP server in Claude Desktop,  
+**So that** my coding agent can discover and call its tools without any additional tooling.
+
+**Acceptance Criteria:**
+- `mcp-server/src/mcp_server.py` is a valid MCP stdio server using the Python MCP SDK
+- Server registers `scan_code` and returns it in the MCP tool-list response
+- Running `python -m mcp_server` from `mcp-server/` starts the server without error
+- MCP server calls the FastAPI proxy over HTTP (localhost) — it is a wrapper, not a rewrite
+- Existing `main.py` FastAPI proxy is untouched — both run independently
+
+**Out of scope:** Replacing or merging the FastAPI server. Cursor or other agent hosts.
+
+**Priority:** P1 — nothing in Sprint 9 works without this.
+
+---
+
+### S10.2 — `scan_code` Tool with Embedded x402 Payment Flow
+
+**As a** coding agent (Claude),  
+**I want** to call `scan_code` with a code snippet,  
+**So that** I receive vulnerability findings without a visible payment step or API key.
+
+**Acceptance Criteria:**
+- MCP tool `scan_code` accepts `{ "code": str, "language": str }` input
+- On invocation: MCP server sends request to FastAPI proxy
+- If 402 received: MCP server extracts invoice metadata, submits HBAR payment using local Hedera Agent Kit, retries with receipt — transparently, no 402 visible to Claude
+- If payment succeeds: returns structured findings JSON to Claude
+- If payment fails: returns `{ "error": "payment_failed", "reason": "..." }` — does not hang
+- If proxy unreachable: returns `{ "error": "proxy_unavailable" }` within 5 seconds
+- Claude Desktop displays findings inline — no raw JSON exposed
+
+**Out of scope:** Additional tools (OCR etc.) in this sprint. `scan_code` only.
+
+**Priority:** P1 — this is the demo.
+
+---
+
+### S10.3 — Wallet Configuration via MCP Server Config
+
+**As a** developer,  
+**I want** to configure my HBAR keys once in the MCP config block,  
+**So that** payment happens automatically on every tool call with no separate wallet setup.
+
+**Acceptance Criteria:**
+- MCP server reads `HEDERA_ACCOUNT_ID`, `HEDERA_PRIVATE_KEY`, `HEDERA_NETWORK` from environment (passed via Claude Desktop MCP config `env` block)
+- Server refuses to start and logs a clear error if any required key is missing
+- Keys are never echoed in tool responses, MCP metadata, or log output
+- Developer requires no separate `.env` file — the MCP config block is the single source
+
+**Out of scope:** Key rotation, multi-account, passkey-backed wallets.
+
+**Priority:** P1 — no separate shim required is the whole point.
+
+---
+
+### S10.4 — Claude Desktop Installation Config
+
+**As a** hackathon judge,  
+**I want** a single config block I can paste into Claude Desktop,  
+**So that** the MCP server is installed and the demo is ready in under 2 minutes.
+
+**Acceptance Criteria:**
+- `client/claude_desktop_config.json` exists with a working MCP server entry (command, args, env placeholders)
+- README "Judge Setup" section covers: clone → populate 3 env values → paste config → restart Claude Desktop → done (5 steps max)
+- Config has been manually verified to work on a clean Claude Desktop install before submission
+- Judges need zero knowledge of the Python MCP SDK to run the demo
+
+**Out of scope:** Cursor, Copilot, or any other agent host. Claude Desktop only.
+
+**Priority:** P1 — judges cannot run the demo without this.
+
+---
+
+### S10.5 — End-to-End Demo Script (DEMO.md)
+
+**As a** judge evaluating the submission,  
+**I want** a scripted demo walkthrough with expected outputs,  
+**So that** I can verify the system works and understand what I am seeing at each step.
+
+**Acceptance Criteria:**
+- `DEMO.md` at repo root includes the exact Claude prompt to trigger the flow
+- Expected output documented: what Claude says, approximate wait time (2–3s for chain), what findings look like
+- On-chain verification step included: judge navigates to Hashscan HCS topic to see the audit trail
+- Demo uses a committed dummy file `demo/vulnerable_code.py` — not the judge's own code
+- Hashscan link to the live HCS audit topic is embedded in `DEMO.md`
+
+**Out of scope:** Video recording, slide deck.
+
+**Priority:** P1 — without this, the magic is invisible.
+
+---
+
+## Sprint 8 — Product Hardening
+
+Three P0 fixes. Must be complete before Sprint 9 starts.
+
+| Story | Title | Fix |
+|---|---|---|
+| S7.3 | Per-Invoice Price Validation (Refund Fix) | receipt.py:51 reads wrong price index — reads global env var instead of invoice-specific amount |
+| S7.4 | Non-Blocking Tool Execution | Code-scan blocks event loop — fix with asyncio.run_in_executor thread pool |
+| S7.5 | Mirror Node-Backed Replay Protection | In-memory replay guard lost on server restart — fix with Mirror Node UUID query |
+
+## Sprint 9 — MCP Client Wrapper & Installable Demo
+
+Five P1 stories. The demo that proves the thesis.
+
+| Story | Title | What |
+|---|---|---|
+| S10.1 | MCP Server Entry Point | `mcp_server.py` — valid stdio MCP server wrapping the FastAPI proxy |
+| S10.2 | `scan_code` Tool with x402 Flow | Payment handled inside MCP tool handler — transparent to Claude |
+| S10.3 | Wallet Config via MCP Config Block | HBAR keys from Claude Desktop `env` — no separate shim |
+| S10.4 | Claude Desktop Installation Config | `client/claude_desktop_config.json` + judge README section |
+| S10.5 | End-to-End Demo Script | `DEMO.md` — exact prompts, expected output, Hashscan links |

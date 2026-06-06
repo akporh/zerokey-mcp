@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from src.admin.router import router as admin_router
@@ -39,7 +41,8 @@ async def list_tools():
 async def run_static_analysis(body: AnalysisInput, request: Request):
     if request.headers.get("x-demo-inject-failure") == "true":
         raise HTTPException(status_code=503, detail="demo_injected_failure")
-    return run_analysis(body.code, body.language)
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, run_analysis, body.code, body.language)
 
 
 @app.post("/mcp/tools/ocr-extract")

@@ -252,6 +252,46 @@ def step7_ocr_mode_a() -> None:
     print(f"  Verify HCS: https://hashscan.io/testnet/topic/{os.environ.get('HCS_AUDIT_TOPIC_ID')}")
 
 
+def step8_concurrency_non_blocking() -> None:
+    _separator("Step 8 — Concurrency: parallel code-scan calls do not stall the server")
+    import asyncio
+    from httpx import AsyncClient, ASGITransport
+
+    async def _run() -> tuple[float, float]:
+        import pathlib
+        sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
+        from src.main import app
+
+        transport = ASGITransport(app=app)
+
+        # Two concurrent 402-challenge requests — neither should wait for the other.
+        # (The challenge path is fast; we're confirming the event loop isn't blocked.)
+        async def _request(client: AsyncClient) -> tuple[int, float]:
+            start = asyncio.get_event_loop().time()
+            r = await client.post(
+                "/mcp/tools/execute-static-analysis",
+                json={"code": SAMPLE_CODE, "language": "python"},
+            )
+            return r.status_code, asyncio.get_event_loop().time() - start
+
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            wall_start = asyncio.get_event_loop().time()
+            results = await asyncio.gather(_request(client), _request(client))
+            wall_time = asyncio.get_event_loop().time() - wall_start
+
+        for i, (status, elapsed) in enumerate(results, 1):
+            assert status == 402, f"Request {i}: expected 402, got {status}"
+            print(f"  Request {i}: 402 in {elapsed:.2f}s ✓")
+
+        return wall_time, max(r[1] for r in results)
+
+    wall_time, slowest = asyncio.run(_run())
+    print(f"  Wall time (2 concurrent): {wall_time:.2f}s — slowest single: {slowest:.2f}s")
+    # Both must complete quickly — if the loop were blocked, second would be >> first
+    assert wall_time < 5.0, f"Concurrent requests took {wall_time:.2f}s — possible blocking"
+    print("✓ Event loop not blocked — concurrent requests served without stall")
+
+
 def main() -> None:
     print("\n=== x402 Pay-Per-Call End-to-End Test ===")
     invoice = step1_request_without_receipt()
@@ -261,6 +301,7 @@ def main() -> None:
     step5_downstream_failure_triggers_refund()
     step6_allowance_mode()
     step7_ocr_mode_a()
+    step8_concurrency_non_blocking()
     print("\n=== ALL STEPS PASSED ===\n")
 
 

@@ -2,7 +2,7 @@ import base64
 import time
 
 from src.config import settings
-from src.validation.mirror_node import ValidationError, fetch_transaction
+from src.validation.mirror_node import ValidationError, check_memo_replayed, fetch_transaction
 
 TINYBARS_PER_HBAR = 100_000_000
 
@@ -63,6 +63,12 @@ async def validate_payment_receipt(
         memo = ""
     if memo != invoice_uuid:
         return False, None, "uuid_mismatch", None
+
+    # Check 4 — Mirror Node replay guard (survives server restart)
+    # Queries the ledger for any prior confirmed tx with the same UUID memo.
+    # Fails closed: Mirror Node error → treat as replayed → reject.
+    if await check_memo_replayed(invoice_uuid, tx_id):
+        return False, None, "uuid_replayed_on_chain", None
 
     # Extract payer: the account with a negative transfer that is not the network fee collector
     payer_account_id = next(

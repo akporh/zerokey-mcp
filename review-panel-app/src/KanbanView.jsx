@@ -55,7 +55,7 @@ const STATUS_LABEL = {
   backlog: 'Start', inprogress: 'Mark Review', review: 'Mark Done', done: '✓ Done', blocked: 'Unblock',
 };
 
-// All 19 stories
+// All 22 stories (Sprint 8 additions: S7.3 updated, S7.4, S7.5 added)
 const ALL_STORIES = [
   { id:'S1.1', epic:'E1', priority:'P0', title:'Runnable FastAPI + MCP Server',
     role:'agent developer', want:'a running MCP-compatible server endpoint',
@@ -121,10 +121,18 @@ const ALL_STORIES = [
     role:'tool provider', want:'register tools via config not code',
     ac:['Tools in tools.yaml: name, description, price_hbar, upstream_url, env_key','Registry loads at startup','New tool in config + restart = discoverable','Removed tool → 404, not crash'],
     phase:'P3', blocks:'S7.2, S7.3' },
-  { id:'S7.3', epic:'E7', priority:'P2', title:'Per-Tool Pricing',
-    role:'tool provider', want:'different price per tool',
-    ac:['price_hbar in config drives x402-Invoice-Amount','Invoice reflects specific tool price','Price change takes effect on restart'],
-    phase:'P3', blocks:'S7.2' },
+  { id:'S7.3', epic:'E7', priority:'P0', title:'Per-Invoice Price Validation in Refund Path',
+    role:'developer using a multi-priced tool', want:'refund calculation to use the price actually charged',
+    ac:['price_hbar in config drives x402-Invoice-Amount','Invoice reflects specific tool — not flat server-wide rate','receipt.py:51 reads pending_entry["amount_hbar"] not settings["TOOL_PRICE_HBAR"]','TOOL_PRICE_HBAR retired from config.py + all 5 reference sites','Tool at 0.5 HBAR and tool at 2 HBAR refund at their own price','Existing refund flow (HCS tool_failed before dispatch) unchanged'],
+    phase:'P3', blocks:'—' },
+  { id:'S7.4', epic:'E7', priority:'P0', title:'Non-Blocking Tool Execution (Thread Pool)',
+    role:'developer using the x402 proxy', want:'server to handle concurrent tool calls without stalling',
+    ac:['Blocking code-analysis scan runs via asyncio.run_in_executor — not on event loop','Second concurrent request begins immediately while scan runs — no queue stall','Thread pool is bounded — unbounded threads not acceptable','Non-blocking endpoint response time unaffected during scan','Existing tool response schema unchanged'],
+    phase:'P3', blocks:'—' },
+  { id:'S7.5', epic:'E7', priority:'P0', title:'Mirror Node-Backed Replay Protection',
+    role:'tool provider', want:'receipt replay detection to survive server restarts',
+    ac:['In-memory used_invoices set removed as sole replay guard','Mirror Node queried for prior confirmed txs with matching UUID memo on every validation','>=1 confirmed match (not current tx) → 402 / duplicate_invoice','Mirror Node query failure → fail closed (receipt rejected, not accepted)','Server restart + resubmit of used receipt → rejected correctly','Mirror Node query async (httpx) — does not block event loop','Existing triple-check preserved — this is an additional check'],
+    phase:'P3', blocks:'—' },
   { id:'S7.2', epic:'E7', priority:'P2', title:'OCR Extraction Tool',
     role:'agent developer', want:'a second registered tool (OCR extraction)',
     ac:['Tool: ocr-extract','Accepts { file_url, output_format }','Returns text/structured data from upstream OCR API','Different .env key to code analysis tool'],
@@ -373,7 +381,7 @@ function ActivityFeed({ log }) {
 const PHASES = [
   { id: 'P1', label: 'Phase 1 — MVP Core',          color: C.red,    ids: ['S1.1','S1.2','S1.3','S2.1','S2.2','S3.1','S3.2','S2.3'] },
   { id: 'P2', label: 'Phase 2 — Hackathon Complete', color: C.amber,  ids: ['S4.1','S4.2','S5.1','S5.2','S5.3','S9.1','S9.2'] },
-  { id: 'P3', label: 'Phase 3 — Differentiator',     color: C.cyan,   ids: ['S6.1','S6.2','S7.1','S7.3','S7.2'] },
+  { id: 'P3', label: 'Phase 3 — Differentiator',     color: C.cyan,   ids: ['S6.1','S6.2','S7.1','S7.3','S7.2','S7.4','S7.5'] },
   { id: 'P4', label: 'Phase 4 — Post-Hackathon',     color: C.purple, ids: ['S8.1'] },
 ];
 
