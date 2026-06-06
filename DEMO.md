@@ -107,6 +107,18 @@ The payment transaction itself is also visible on Hashscan — the ZeroKey proxy
 
 ---
 
+## Human-in-the-loop payment approval (optional)
+
+Add `"ZEROKEY_REQUIRE_APPROVAL": "true"` to the MCP env block to enable an approval dialog before each payment. Claude Desktop will pause and show:
+
+> ZeroKey: Approve payment of 0.5 HBAR to scan this code for security vulnerabilities? (Hedera testnet)
+
+Accept → payment proceeds. Decline or Cancel → tool returns `{"error": "payment_declined_by_user"}`.
+
+The template in `client/claude_desktop_config.json` has this enabled by default.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Check |

@@ -4,16 +4,16 @@ Wraps the ZeroKey FastAPI proxy with transparent x402 payment handling.
 Claude calls scan_code; payment is settled on Hedera automatically.
 
 Required env (set in MCP config block):
-  HEDERA_ACCOUNT_ID   — agent's testnet account (e.g. 0.0.9089637)
-  HEDERA_PRIVATE_KEY  — agent's ED25519 private key
+  HEDERA_ACCOUNT_ID         — agent's testnet account (e.g. 0.0.9089637)
+  HEDERA_PRIVATE_KEY        — agent's ED25519 private key
 
 Optional env:
-  HEDERA_NETWORK      — testnet | mainnet  (default: testnet)
-  ZEROKEY_PROXY_URL   — FastAPI proxy base URL  (default: http://localhost:8000)
+  HEDERA_NETWORK            — testnet | mainnet  (default: testnet)
+  ZEROKEY_PROXY_URL         — FastAPI proxy base URL  (default: http://localhost:8000)
+  ZEROKEY_REQUIRE_APPROVAL  — set to "true" to require human approval before each payment
 """
 
 import asyncio
-import json
 import os
 import sys
 
@@ -23,14 +23,15 @@ from hedera_agent_kit.shared.hedera_utils.hedera_builder import HederaBuilder
 from hedera_agent_kit.shared.parameter_schemas.account_schema import TransferHbarParametersNormalised
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool
+from mcp.types import ElicitRequestedSchema, Tool
 
 # --- Config & startup validation -------------------------------------------
 
-_ACCOUNT_ID  = os.environ.get("HEDERA_ACCOUNT_ID", "")
-_PRIVATE_KEY = os.environ.get("HEDERA_PRIVATE_KEY", "")
-_NETWORK     = os.environ.get("HEDERA_NETWORK", "testnet")
-_PROXY_URL   = os.environ.get("ZEROKEY_PROXY_URL", "http://localhost:8000").rstrip("/")
+_ACCOUNT_ID       = os.environ.get("HEDERA_ACCOUNT_ID", "")
+_PRIVATE_KEY      = os.environ.get("HEDERA_PRIVATE_KEY", "")
+_NETWORK          = os.environ.get("HEDERA_NETWORK", "testnet")
+_PROXY_URL        = os.environ.get("ZEROKEY_PROXY_URL", "http://localhost:8000").rstrip("/")
+_REQUIRE_APPROVAL = os.environ.get("ZEROKEY_REQUIRE_APPROVAL", "").lower() in ("1", "true", "yes")
 
 for _required in ("HEDERA_ACCOUNT_ID", "HEDERA_PRIVATE_KEY"):
     if not os.environ.get(_required):
@@ -67,10 +68,36 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict) -> dict:
     if name != "scan_code":
         return {"error": f"Unknown tool: {name}"}
+
+    if _REQUIRE_APPROVAL:
+        approved = await _request_payment_approval(invoice_amount="0.5 HBAR")
+        if not approved:
+            return {"error": "payment_declined_by_user"}
+
     return await _scan_code_with_payment(
         arguments["code"],
         arguments.get("language", "python"),
     )
+
+
+async def _request_payment_approval(invoice_amount: str) -> bool:
+    """Show a HITL dialog asking the user to approve the payment. Returns True if approved."""
+    try:
+        session = server.request_context.session
+        result = await session.elicit_form(
+            message=(
+                f"ZeroKey: Approve payment of {invoice_amount} to scan this code "
+                f"for security vulnerabilities? (Hedera testnet)"
+            ),
+            requestedSchema=ElicitRequestedSchema(
+                type="object",
+                properties={},
+            ),
+        )
+        return result.action == "accept"
+    except Exception:
+        # Client doesn't support elicitation — fail open and auto-approve
+        return True
 
 
 # --- Payment-aware tool handler --------------------------------------------

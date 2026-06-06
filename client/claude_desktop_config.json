@@ -1,5 +1,5 @@
 {
-  "_readme": "Replace the two ABSOLUTE_PATH placeholders with the real path to this repo on your machine. Replace the two Hedera values with your testnet account ID and ED25519 private key.",
+  "_readme": "Replace the two ABSOLUTE_PATH placeholders with the real path to this repo on your machine. Replace the two Hedera values with your testnet account ID and ED25519 private key. Set ZEROKEY_REQUIRE_APPROVAL to 'true' to enable human-in-the-loop payment approval dialogs.",
   "mcpServers": {
     "zerokey": {
       "command": "ABSOLUTE_PATH/mcp-server/.venv/bin/python3.12",
@@ -8,7 +8,8 @@
       "env": {
         "HEDERA_ACCOUNT_ID": "YOUR_TESTNET_ACCOUNT_ID",
         "HEDERA_PRIVATE_KEY": "YOUR_ED25519_PRIVATE_KEY",
-        "HEDERA_NETWORK": "testnet"
+        "HEDERA_NETWORK": "testnet",
+        "ZEROKEY_REQUIRE_APPROVAL": "true"
       }
     }
   }
