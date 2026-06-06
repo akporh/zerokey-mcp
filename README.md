@@ -88,6 +88,16 @@ client/         # Claude Desktop config + judge setup
 DEMO.md         # Step-by-step demo walkthrough
 ```
 
+## Judge setup (5 steps)
+
+1. `cd mcp-server && pip install -r requirements.txt` — install dependencies
+2. Copy `.env.example` to `.env` and fill in server account credentials (or ask the submitter for the shared testnet `.env`)
+3. Start the proxy: `.venv/bin/python3.12 -m uvicorn src.main:app --port 8000`
+4. Copy `client/claude_desktop_config.json` into `~/Library/Application Support/Claude/claude_desktop_config.json` — update the two path placeholders and your Hedera testnet credentials
+5. Restart Claude Desktop → ask Claude: **"Scan this code for vulnerabilities: `import sqlite3; API_SECRET = 'abc123'`"**
+
+Full walkthrough with expected outputs: see [DEMO.md](DEMO.md)
+
 ## Bounty
 
 Entry for [Hedera AI Agent Bounty](https://ai-bounties.hedera.com) — Week 3: MCP or x402 Agent ($1,000 HBAR).  
