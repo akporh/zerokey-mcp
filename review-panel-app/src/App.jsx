@@ -21,7 +21,7 @@ function TopBar({ tab, onTabClick }) {
   const { statuses } = useStore()
   const done   = Object.values(statuses).filter(s => s === 'done').length
   const inprog = Object.values(statuses).filter(s => s === 'inprogress').length
-  const total  = 19
+  const total  = 21
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #1e2d45', backgroundColor: '#0d1526', padding: '0 24px', flexShrink: 0 }}>

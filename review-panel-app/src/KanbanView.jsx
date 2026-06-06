@@ -4,17 +4,19 @@ import { useNav } from './navContext';
 
 // Which epics belong to each phase
 const PHASE_EPICS = {
-  ALL: ['E1','E2','E3','E4','E5','E6','E7','E8','E9'],
+  ALL: ['E1','E2','E3','E4','E5','E6','E7','E8','E9','E10'],
   P1:  ['E1','E2','E3'],
   P2:  ['E4','E5','E9'],
   P3:  ['E6','E7'],
-  P4:  ['E8'],
+  P4:  ['E10'],
+  P5:  ['E8'],
 };
 
 const EPIC_LABELS = {
   E1:'MCP Foundation', E2:'x402 Rail', E3:'Validation',
   E4:'HCS Audit',      E5:'Refund Hook', E6:'Allowance Mode',
   E7:'Tool Registry',  E8:'Mainnet Gate', E9:'Demo Observability',
+  E10:'MCP Client Wrapper',
 };
 
 // Which phase an epic belongs to (for roadmap navigation)
@@ -22,7 +24,8 @@ const EPIC_TO_PHASE = {
   E1:'P1', E2:'P1', E3:'P1',
   E4:'P2', E5:'P2', E9:'P2',
   E6:'P3', E7:'P3',
-  E8:'P4',
+  E10:'P4',
+  E8:'P5',
 };
 
 const C = {
@@ -34,7 +37,7 @@ const C = {
 };
 
 const P_COLOR  = { P0: C.red, P1: C.amber, P2: C.cyan, P3: C.muted };
-const EPIC_CLR = { E1: C.red, E2: C.red, E3: C.red, E4: C.amber, E5: C.amber, E6: C.cyan, E7: C.cyan, E8: C.purple, E9: C.teal };
+const EPIC_CLR = { E1: C.red, E2: C.red, E3: C.red, E4: C.amber, E5: C.amber, E6: C.cyan, E7: C.cyan, E8: C.purple, E9: C.teal, E10: C.green };
 
 const COLUMNS = [
   { id: 'backlog',    label: 'Backlog',     color: C.muted,   bg: '#0d1526' },
@@ -145,10 +148,30 @@ const ALL_STORIES = [
     role:'judge / auditor', want:'a permanent link to the HCS audit topic visible before and during simulation',
     ac:['[⬡ HCS Audit Topic] link in header when server is live','Link opens hashscan.io/testnet/topic/{HCS_AUDIT_TOPIC_ID} in a new tab','Derived from serverStatus.hashscan_topic in /demo/status response','[⬡ View HCS Audit on Hashscan] also appears inline on HCS log events','Header link absent when server is offline'],
     phase:'P2', blocks:'—' },
+  { id:'S10.1', epic:'E10', priority:'P1', title:'MCP Server Entry Point',
+    role:'developer', want:'to install ZeroKey as an MCP server in Claude Desktop',
+    ac:['mcp_server.py is a valid MCP stdio server using the Python MCP SDK','Registers scan_code in MCP tool list','python -m mcp_server starts without error','Calls FastAPI proxy over HTTP — wrapper not a rewrite','Existing main.py untouched'],
+    phase:'P4', blocks:'S10.2,S10.3,S10.4' },
+  { id:'S10.2', epic:'E10', priority:'P1', title:'scan_code Tool with Embedded x402 Payment Flow',
+    role:'coding agent (Claude)', want:'to call scan_code and get findings without a visible payment step',
+    ac:['Accepts { code, language }','402 received → pays via Agent Kit → retries — no 402 visible to Claude','Payment success → returns findings JSON','Payment fail → { error: payment_failed }','Proxy unreachable → { error: proxy_unavailable } within 5s'],
+    phase:'P4', blocks:'S10.5' },
+  { id:'S10.3', epic:'E10', priority:'P1', title:'Wallet Config via MCP Config Block',
+    role:'developer', want:'HBAR keys configured once in the MCP env block',
+    ac:['Reads HEDERA_ACCOUNT_ID, HEDERA_PRIVATE_KEY, HEDERA_NETWORK from env','Refuses to start with clear error if any key missing','Keys never echoed in responses or metadata','No separate .env file required'],
+    phase:'P4', blocks:'S10.4' },
+  { id:'S10.4', epic:'E10', priority:'P1', title:'Claude Desktop Installation Config',
+    role:'hackathon judge', want:'a single config block to paste into Claude Desktop',
+    ac:['client/claude_desktop_config.json with working MCP entry','README Judge Setup: 5 steps max','Manually verified on clean Claude Desktop install','Zero MCP SDK knowledge required'],
+    phase:'P4', blocks:'S10.5' },
+  { id:'S10.5', epic:'E10', priority:'P1', title:'End-to-End Demo Script (DEMO.md)',
+    role:'judge', want:'a scripted walkthrough with expected outputs',
+    ac:['DEMO.md at repo root with exact Claude prompt','Expected output documented with wait time','On-chain verification step via Hashscan','demo/vulnerable_code.py committed','Hashscan HCS topic link embedded'],
+    phase:'P4', blocks:'—' },
   { id:'S8.1', epic:'E8', priority:'P3', title:'Mainnet Authorization Prompt',
     role:'developer on mainnet', want:'agent to confirm before spending real HBAR',
     ac:['mainnet: prompts "Authorize X HBAR? (y/n)"','Pauses until y input','n → clean cancel, no broadcast','testnet: gate bypassed automatically'],
-    phase:'P4', blocks:'—' },
+    phase:'P5', blocks:'—' },
 ];
 
 const STORY_MAP = Object.fromEntries(ALL_STORIES.map(s => [s.id, s]));
@@ -382,7 +405,8 @@ const PHASES = [
   { id: 'P1', label: 'Phase 1 — MVP Core',          color: C.red,    ids: ['S1.1','S1.2','S1.3','S2.1','S2.2','S3.1','S3.2','S2.3'] },
   { id: 'P2', label: 'Phase 2 — Hackathon Complete', color: C.amber,  ids: ['S4.1','S4.2','S5.1','S5.2','S5.3','S9.1','S9.2'] },
   { id: 'P3', label: 'Phase 3 — Differentiator',     color: C.cyan,   ids: ['S6.1','S6.2','S7.1','S7.3','S7.2','S7.4','S7.5'] },
-  { id: 'P4', label: 'Phase 4 — Post-Hackathon',     color: C.purple, ids: ['S8.1'] },
+  { id: 'P4', label: 'Phase 4 — Demo Ready',         color: C.green,  ids: ['S10.1','S10.2','S10.3','S10.4','S10.5'] },
+  { id: 'P5', label: 'Phase 5 — Post-Hackathon',     color: C.purple, ids: ['S8.1'] },
 ];
 
 function PhaseProgressBar({ phase }) {
@@ -454,7 +478,7 @@ export default function KanbanView() {
         {/* Phase filter */}
         <div style={{ padding: '12px 14px 8px', borderBottom: `1px solid ${C.border}` }}>
           <div style={{ color: C.muted, fontSize: 10, fontWeight: 700, fontFamily: 'monospace', letterSpacing: '0.08em', marginBottom: 6 }}>PHASE</div>
-          {['ALL', 'P1', 'P2', 'P3', 'P4'].map(p => (
+          {['ALL', 'P1', 'P2', 'P3', 'P4', 'P5'].map(p => (
             <button key={p} onClick={() => handlePhaseChange(p)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 4, border: 'none', cursor: 'pointer', backgroundColor: filterPhase === p ? '#1e2d45' : 'transparent', color: filterPhase === p ? C.cyan : C.muted, fontSize: 12, fontFamily: 'monospace', marginBottom: 2 }}>
               {p === 'ALL' ? 'All Phases' : p}
             </button>
