@@ -3,7 +3,9 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from hiero_sdk_python import AccountId, Client, PrivateKey, TopicId, TopicMessageSubmitTransaction
+from hiero_sdk_python import AccountId, Client, PrivateKey, TopicId
+from hedera_agent_kit.shared.hedera_utils.hedera_builder import HederaBuilder
+from hedera_agent_kit.shared.parameter_schemas.consensus_schema import SubmitTopicMessageParametersNormalised
 
 from src.config import settings
 
@@ -16,13 +18,11 @@ def _sync_submit(payload: str) -> None:
         AccountId.from_string(settings["HEDERA_SERVER_ACCOUNT_ID"]),
         PrivateKey.from_string(settings["HEDERA_SERVER_PRIVATE_KEY"]),
     )
-    topic_id = TopicId.from_string(settings["HCS_AUDIT_TOPIC_ID"])
-    (
-        TopicMessageSubmitTransaction()
-        .set_topic_id(topic_id)
-        .set_message(payload)
-        .execute(client)
+    params = SubmitTopicMessageParametersNormalised(
+        topic_id=TopicId.from_string(settings["HCS_AUDIT_TOPIC_ID"]),
+        message=payload,
     )
+    HederaBuilder.submit_topic_message(params).execute(client)
 
 
 async def write_event(

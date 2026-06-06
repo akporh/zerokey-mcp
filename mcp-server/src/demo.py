@@ -14,8 +14,9 @@ from hiero_sdk_python import (
     Client,
     Hbar,
     PrivateKey,
-    TransferTransaction,
 )
+from hedera_agent_kit.shared.hedera_utils.hedera_builder import HederaBuilder
+from hedera_agent_kit.shared.parameter_schemas.account_schema import TransferHbarParametersNormalised
 from pydantic import BaseModel
 
 from src.config import settings
@@ -51,14 +52,15 @@ def _hedera_client() -> Client:
 
 def _broadcast_payment_sync(invoice: dict) -> str:
     c = _hedera_client()
-    amount = float(invoice["amount"])
-    receipt = (
-        TransferTransaction()
-        .add_hbar_transfer(AccountId.from_string(_AGENT_ACCOUNT_ID), Hbar(-amount))
-        .add_hbar_transfer(AccountId.from_string(invoice["account"]), Hbar(amount))
-        .set_transaction_memo(invoice["reference"])
-        .execute(c)
+    amount_tinybar = int(float(invoice["amount"]) * 100_000_000)
+    params = TransferHbarParametersNormalised(
+        hbar_transfers={
+            AccountId.from_string(_AGENT_ACCOUNT_ID): -amount_tinybar,
+            AccountId.from_string(invoice["account"]): amount_tinybar,
+        },
+        transaction_memo=invoice["reference"],
     )
+    receipt = HederaBuilder.transfer_hbar(params).execute(c)
     return str(receipt.transaction_id)
 
 
