@@ -8,7 +8,7 @@ End-to-end demo: Claude Desktop calls `scan_code`, ZeroKey pays 0.5 HBAR on-chai
 
 - Python 3.12 + `mcp-server/.venv` created (`pip install -r requirements.txt`)
 - Hedera testnet account funded with at least 2 HBAR
-- Claude Desktop installed
+- Claude Desktop installed (any coding agent)
 
 ---
 

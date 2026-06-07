@@ -11,10 +11,16 @@ from src.tools.hedera_mirror import (
     AccountInfoInput, HcsTopicInput, TokenLookupInput, TransactionInput,
     get_account_info, get_transaction, lookup_token, read_hcs_topic,
 )
+import src.demo_log as demo_log
 from src.tools.ocr import OcrInput, run_ocr
 from src.tools.static_analysis import AnalysisInput, run_analysis
 
 app = FastAPI(title="Hedera x402 MCP Proxy")
+
+demo_log.startup(
+    proxy_url="http://localhost:8000",
+    tools=["scan_code", "get_account_info", "lookup_token", "read_hcs_topic", "get_transaction"],
+)
 app.add_middleware(X402Middleware)
 app.add_middleware(
     CORSMiddleware,

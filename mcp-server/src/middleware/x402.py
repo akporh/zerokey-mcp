@@ -12,6 +12,7 @@ from starlette.responses import Response
 from src.allowance.pull import dispatch_allowance_pull
 from src.audit.hcs import write_event
 from src.config import settings
+import src.demo_log as demo_log
 from src.refund.transfer import dispatch_refund
 from src.registry import TOOL_REGISTRY
 from src.validation.receipt import validate_payment_receipt
@@ -87,6 +88,7 @@ async def _execute_and_audit(
         response = None
 
     if downstream_failed:
+        demo_log.tool_failed(tool_path, "dispatched")
         asyncio.create_task(_handle_failure(
             payment_uuid, payer_account_id, amount_tinybar, tx_id, tool_path, mode
         ))
@@ -101,6 +103,7 @@ async def _execute_and_audit(
             },
         )
 
+    demo_log.tool_executed(tool_path, settings["HCS_AUDIT_TOPIC_ID"])
     asyncio.create_task(write_event(
         "tool_executed",
         uuid=payment_uuid,
@@ -147,6 +150,7 @@ class X402Middleware(BaseHTTPMiddleware):
                     media_type="application/json",
                 )
 
+            demo_log.payment_verified(agent_account_id, price_hbar, pull_tx_id, mode="allowance")
             asyncio.create_task(write_event(
                 "payment_verified",
                 uuid=payment_uuid,
@@ -177,6 +181,7 @@ class X402Middleware(BaseHTTPMiddleware):
                 "amount_hbar": price_hbar,
                 "expires_at": time.time() + UUID_TTL_SECONDS,
             }
+            demo_log.challenge(tool_path, price_hbar)
             asyncio.create_task(write_event(
                 "402_issued",
                 uuid=ref,
@@ -224,6 +229,7 @@ class X402Middleware(BaseHTTPMiddleware):
         request.state.amount_tinybar = amount_tinybar
         request.state.original_tx_id = hedera_tx_id
 
+        demo_log.payment_verified(payer_account_id, price_hbar, hedera_tx_id)
         asyncio.create_task(write_event(
             "payment_verified",
             uuid=invoice_uuid,

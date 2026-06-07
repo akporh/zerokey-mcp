@@ -167,24 +167,27 @@ async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
     except Exception as exc:
         return {"error": "payment_failed", "detail": str(exc)}
 
-    await asyncio.sleep(8)
-
     receipt_header = f"{tx_id}:{invoice['reference']}"
-    r2 = await _post(endpoint, payload, headers={"x402-Payment-Receipt": receipt_header})
-    if r2 is None:
-        return {"error": "proxy_unavailable"}
-    if r2.status_code == 200:
-        return r2.json()
-    return {"error": "payment_failed", "detail": f"proxy returned {r2.status_code} after payment"}
+    for attempt in range(6):
+        await asyncio.sleep(2)
+        r2 = await _post(endpoint, payload, headers={"x402-Payment-Receipt": receipt_header})
+        if r2 is None:
+            return {"error": "proxy_unavailable"}
+        if r2.status_code == 200:
+            return r2.json()
+        if r2.status_code != 402:
+            return {"error": "payment_failed", "detail": f"proxy returned {r2.status_code} after payment"}
+    return {"error": "payment_failed", "detail": "receipt not accepted after 6 attempts"}
 
 
 async def _post(
     url: str,
     payload: dict,
     headers: dict | None = None,
+    timeout: float = 20.0,
 ) -> httpx.Response | None:
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             return await client.post(url, json=payload, headers=headers or {})
     except (httpx.ConnectError, httpx.TimeoutException):
         return None
