@@ -1,7 +1,7 @@
 """ZeroKey MCP stdio server — installable via Claude Desktop config block.
 
 Wraps the ZeroKey FastAPI proxy with transparent x402 payment handling.
-Claude calls scan_code; payment is settled on Hedera automatically.
+Claude calls any registered tool; payment is settled on Hedera automatically.
 
 Required env (set in MCP config block):
   HEDERA_ACCOUNT_ID         — agent's testnet account (e.g. 0.0.9089637)
@@ -49,8 +49,8 @@ async def list_tools() -> list[Tool]:
             name="scan_code",
             description=(
                 "Scan Python code for security vulnerabilities and quality issues "
-                "using Pyflakes + Bandit. Payment is handled automatically via Hedera x402 "
-                "(0.5 HBAR per call). Returns issues list and summary."
+                "using Pyflakes + Bandit. Payment handled automatically via Hedera x402 "
+                "(0.5 HBAR per call)."
             ),
             inputSchema={
                 "type": "object",
@@ -60,99 +60,152 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["code"],
             },
-        )
+        ),
+        Tool(
+            name="get_account_info",
+            description=(
+                "Fetch balance, key type, and metadata for any Hedera account. "
+                "Returns HBAR balance and Hashscan link. (0.1 HBAR per call)"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "account_id": {"type": "string", "description": "Hedera account ID (e.g. 0.0.9082590)"},
+                },
+                "required": ["account_id"],
+            },
+        ),
+        Tool(
+            name="lookup_token",
+            description=(
+                "Look up a Hedera token (HTS) by ID. Returns name, symbol, type, "
+                "total supply, decimals, and treasury account. (0.1 HBAR per call)"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "token_id": {"type": "string", "description": "Hedera token ID (e.g. 0.0.123456)"},
+                },
+                "required": ["token_id"],
+            },
+        ),
+        Tool(
+            name="read_hcs_topic",
+            description=(
+                "Read the latest messages from any public Hedera Consensus Service topic. "
+                "Messages are base64-decoded and JSON-parsed where possible. (0.1 HBAR per call)"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "topic_id": {"type": "string", "description": "HCS topic ID (e.g. 0.0.9120320)"},
+                    "limit":    {"type": "integer", "description": "Number of messages to return (1–100)", "default": 10},
+                },
+                "required": ["topic_id"],
+            },
+        ),
+        Tool(
+            name="get_transaction",
+            description=(
+                "Fetch details of a Hedera transaction. Returns type, result, fee, memo, "
+                "and transfer list. Accepts 0.0.X@sec.nano or 0.0.X-sec-nano format. (0.1 HBAR per call)"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "transaction_id": {"type": "string", "description": "Transaction ID (e.g. 0.0.9082590@1780744910.502902984)"},
+                },
+                "required": ["transaction_id"],
+            },
+        ),
     ]
+
+
+_TOOL_ENDPOINTS: dict[str, tuple[str, list[str]]] = {
+    # name → (proxy path suffix, required arg keys)
+    "scan_code":        ("execute-static-analysis", ["code"]),
+    "get_account_info": ("get-account-info",        ["account_id"]),
+    "lookup_token":     ("lookup-token",             ["token_id"]),
+    "read_hcs_topic":   ("read-hcs-topic",           ["topic_id"]),
+    "get_transaction":  ("get-transaction",          ["transaction_id"]),
+}
 
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> dict:
-    if name != "scan_code":
+    if name not in _TOOL_ENDPOINTS:
         return {"error": f"Unknown tool: {name}"}
-
-    if _REQUIRE_APPROVAL:
-        approved = await _request_payment_approval(invoice_amount="0.5 HBAR")
-        if not approved:
-            return {"error": "payment_declined_by_user"}
-
-    return await _scan_code_with_payment(
-        arguments["code"],
-        arguments.get("language", "python"),
-    )
+    path_suffix, _ = _TOOL_ENDPOINTS[name]
+    endpoint = f"{_PROXY_URL}/mcp/tools/{path_suffix}"
+    return await _call_tool_with_payment(endpoint, arguments)
 
 
-async def _request_payment_approval(invoice_amount: str) -> bool:
-    """Show a HITL dialog asking the user to approve the payment. Returns True if approved."""
-    try:
-        session = server.request_context.session
-        result = await session.elicit_form(
-            message=(
-                f"ZeroKey: Approve payment of {invoice_amount} to scan this code "
-                f"for security vulnerabilities? (Hedera testnet)"
-            ),
-            requestedSchema=ElicitRequestedSchema(
-                type="object",
-                properties={},
-            ),
-        )
-        return result.action == "accept"
-    except Exception:
-        # Client doesn't support elicitation — fail open and auto-approve
-        return True
+# --- Shared payment-aware call helper --------------------------------------
 
-
-# --- Payment-aware tool handler --------------------------------------------
-
-async def _scan_code_with_payment(code: str, language: str) -> dict:
-    endpoint = f"{_PROXY_URL}/mcp/tools/execute-static-analysis"
-    payload  = {"code": code, "language": language}
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r1 = await client.post(endpoint, json=payload)
-    except (httpx.ConnectError, httpx.TimeoutException):
+async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
+    r1 = await _post(endpoint, payload)
+    if r1 is None:
         return {"error": "proxy_unavailable"}
-
     if r1.status_code == 200:
         return r1.json()
-
     if r1.status_code != 402:
         return {"error": f"unexpected_status_{r1.status_code}"}
 
-    # --- x402 challenge received ---
     try:
         invoice = r1.json()["invoice"]
     except (KeyError, ValueError):
         return {"error": "malformed_402_response"}
 
-    # Pay on a thread (Hedera SDK is synchronous)
+    if _REQUIRE_APPROVAL:
+        approved = await _request_payment_approval(f"{invoice['amount']} HBAR")
+        if not approved:
+            return {"error": "payment_declined_by_user"}
+
     loop = asyncio.get_event_loop()
     try:
         tx_id = await loop.run_in_executor(None, _broadcast_payment, invoice)
     except Exception as exc:
         return {"error": "payment_failed", "detail": str(exc)}
 
-    # Wait for Mirror Node propagation (matches test_client.py timing)
     await asyncio.sleep(8)
 
     receipt_header = f"{tx_id}:{invoice['reference']}"
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r2 = await client.post(
-                endpoint,
-                json=payload,
-                headers={"x402-Payment-Receipt": receipt_header},
-            )
-    except (httpx.ConnectError, httpx.TimeoutException):
+    r2 = await _post(endpoint, payload, headers={"x402-Payment-Receipt": receipt_header})
+    if r2 is None:
         return {"error": "proxy_unavailable"}
-
     if r2.status_code == 200:
         return r2.json()
-
     return {"error": "payment_failed", "detail": f"proxy returned {r2.status_code} after payment"}
 
 
+async def _post(
+    url: str,
+    payload: dict,
+    headers: dict | None = None,
+) -> httpx.Response | None:
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            return await client.post(url, json=payload, headers=headers or {})
+    except (httpx.ConnectError, httpx.TimeoutException):
+        return None
+
+
+async def _request_payment_approval(invoice_amount: str) -> bool:
+    try:
+        session = server.request_context.session
+        result = await session.elicit_form(
+            message=(
+                f"ZeroKey: Approve payment of {invoice_amount} "
+                f"to call this tool on Hedera {_NETWORK}?"
+            ),
+            requestedSchema=ElicitRequestedSchema(type="object", properties={}),
+        )
+        return result.action == "accept"
+    except Exception:
+        return True  # fail open — client doesn't support elicitation
+
+
 def _broadcast_payment(invoice: dict) -> str:
-    """Sign and broadcast CryptoTransfer; returns transaction ID string."""
     c = Client.for_testnet() if _NETWORK != "mainnet" else Client.for_mainnet()
     c.set_operator(
         AccountId.from_string(_ACCOUNT_ID),
@@ -161,8 +214,8 @@ def _broadcast_payment(invoice: dict) -> str:
     amount_tinybar = int(float(invoice["amount"]) * 100_000_000)
     params = TransferHbarParametersNormalised(
         hbar_transfers={
-            AccountId.from_string(_ACCOUNT_ID):      -amount_tinybar,
-            AccountId.from_string(invoice["account"]): amount_tinybar,
+            AccountId.from_string(_ACCOUNT_ID):        -amount_tinybar,
+            AccountId.from_string(invoice["account"]):  amount_tinybar,
         },
         transaction_memo=invoice["reference"],
     )

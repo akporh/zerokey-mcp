@@ -7,6 +7,10 @@ from src.config import settings  # noqa: F401 — triggers .env load + validatio
 from src.demo import router as demo_router
 from src.middleware.x402 import X402Middleware
 from src.registry import TOOL_REGISTRY
+from src.tools.hedera_mirror import (
+    AccountInfoInput, HcsTopicInput, TokenLookupInput, TransactionInput,
+    get_account_info, get_transaction, lookup_token, read_hcs_topic,
+)
 from src.tools.ocr import OcrInput, run_ocr
 from src.tools.static_analysis import AnalysisInput, run_analysis
 
@@ -48,3 +52,23 @@ async def run_static_analysis(body: AnalysisInput, request: Request):
 @app.post("/mcp/tools/ocr-extract")
 async def run_ocr_tool(body: OcrInput):
     return await run_ocr(body.image_url)
+
+
+@app.post("/mcp/tools/get-account-info")
+async def get_account_info_tool(body: AccountInfoInput):
+    return await get_account_info(body.account_id)
+
+
+@app.post("/mcp/tools/lookup-token")
+async def lookup_token_tool(body: TokenLookupInput):
+    return await lookup_token(body.token_id)
+
+
+@app.post("/mcp/tools/read-hcs-topic")
+async def read_hcs_topic_tool(body: HcsTopicInput):
+    return await read_hcs_topic(body.topic_id, body.limit)
+
+
+@app.post("/mcp/tools/get-transaction")
+async def get_transaction_tool(body: TransactionInput):
+    return await get_transaction(body.transaction_id)

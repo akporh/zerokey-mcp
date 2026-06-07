@@ -20,13 +20,55 @@ _DEFAULTS: dict[str, dict] = {
         "price_hbar": 0.25,
         "required_env_key": "OCR_SPACE_API_KEY",
     },
+    "/mcp/tools/get-account-info": {
+        "name": "get-account-info",
+        "description": (
+            "Fetch balance, key type, and metadata for any Hedera account. "
+            "Returns HBAR balance and Hashscan link."
+        ),
+        "price_hbar": 0.10,
+        "required_env_key": None,
+    },
+    "/mcp/tools/lookup-token": {
+        "name": "lookup-token",
+        "description": (
+            "Look up a Hedera token (HTS) by ID. "
+            "Returns name, symbol, type, supply, decimals, and treasury account."
+        ),
+        "price_hbar": 0.10,
+        "required_env_key": None,
+    },
+    "/mcp/tools/read-hcs-topic": {
+        "name": "read-hcs-topic",
+        "description": (
+            "Read the latest N messages from any public Hedera Consensus Service topic. "
+            "Messages are base64-decoded."
+        ),
+        "price_hbar": 0.10,
+        "required_env_key": None,
+    },
+    "/mcp/tools/get-transaction": {
+        "name": "get-transaction",
+        "description": (
+            "Fetch details of a Hedera transaction by ID "
+            "(accepts 0.0.X@sec.nano or 0.0.X-sec-nano format). "
+            "Returns type, result, fee, memo, and transfers."
+        ),
+        "price_hbar": 0.10,
+        "required_env_key": None,
+    },
 }
 
 
 def _load() -> dict[str, dict]:
     if _STATE_FILE.exists():
         with open(_STATE_FILE) as f:
-            return json.load(f)
+            state = json.load(f)
+        # Merge any new default tools missing from the persisted state file
+        for path, entry in _DEFAULTS.items():
+            if path not in state:
+                state[path] = copy.deepcopy(entry)
+        return state
     return copy.deepcopy(_DEFAULTS)
 
 
