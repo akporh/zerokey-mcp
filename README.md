@@ -46,7 +46,7 @@ Payment is transparent to Claude. No 402 errors surface to the user.
 
 **Spending allowances** — agents can pre-approve a spending limit via Hedera's native allowance mechanism. The proxy pulls payment within the approved limit, no 402 challenge needed. The agent's private key never leaves the client.
 
-**Human-in-the-loop approval** — set `ZEROKEY_REQUIRE_APPROVAL=true` to enable an approval dialog before each payment via MCP elicitation. The agent pauses and asks the user to approve before broadcasting. Fails open gracefully on non-interactive clients.
+**Human-in-the-loop approval** — set `ZEROKEY_REQUIRE_APPROVAL=true` to enable an approval dialog before each payment via MCP elicitation. The agent pauses and asks the user to approve before broadcasting. Fails open gracefully on non-interactive clients. Note: MCP elicitation support varies by Claude Desktop session — the dialog appears when the client's elicitation API is active and may not show on every call. When it does not appear, payment proceeds automatically and all guardrails remain in effect.
 
 ---
 
