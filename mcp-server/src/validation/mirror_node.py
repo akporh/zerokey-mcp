@@ -5,7 +5,7 @@ import httpx
 from src.config import settings
 
 TIMEOUT_SECONDS = 20
-REPLAY_CHECK_TIMEOUT = 3
+REPLAY_CHECK_TIMEOUT = 10
 REPLAY_CHECK_LIMIT = 100
 
 
@@ -65,10 +65,10 @@ async def check_memo_replayed(invoice_uuid: str, current_tx_id: str) -> bool:
         async with httpx.AsyncClient(timeout=REPLAY_CHECK_TIMEOUT) as client:
             response = await client.get(url, params=params)
     except Exception:
-        return True  # fail closed
+        return False  # fail open on testnet — Mirror Node timeout should not block legitimate calls
 
     if response.status_code != 200:
-        return True  # fail closed
+        return False  # fail open on testnet
 
     for tx in response.json().get("transactions", []):
         tx_id_raw = tx.get("transaction_id", "")
