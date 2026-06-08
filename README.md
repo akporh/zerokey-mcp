@@ -132,6 +132,23 @@ src/main.py  (FastAPI proxy, port 8000)
 
 ---
 
+## Review panel
+
+A companion dashboard built alongside ZeroKey to support development and review:
+
+**[review-panel-app.vercel.app](https://review-panel-app.vercel.app)**
+
+| Tab | What it shows | Requires local proxy? |
+|-----|--------------|----------------------|
+| Architecture docs | System design, flow diagrams, data contracts | No |
+| Kanban / Roadmap | Sprint history and delivery progress | No |
+| Registry | Live tool registry with prices | Yes (port 8000) |
+| Simulation | x402 payment flow simulation | Yes (port 8000) |
+
+Architecture docs and project history are fully accessible on Vercel. Registry and simulation require the proxy running locally on port 8000.
+
+---
+
 ## Judge setup
 
 1. `cd mcp-server && pip install -r requirements.txt`
