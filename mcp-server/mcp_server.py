@@ -168,11 +168,11 @@ async def call_tool(name: str, arguments: dict) -> dict:
             return {"error": "proxy_unavailable"}
         result = r.json()
         if r.status_code == 200:
-            result["_hashscan"] = {
-                "payer_wallet": f"https://hashscan.io/testnet/account/{_ACCOUNT_ID}",
-                "audit_topic":  "https://hashscan.io/testnet/topic/0.0.9120320",
-                "note": "Payment pulled via pre-approved HBAR allowance — see audit topic for tx details",
-            }
+            result["on_chain_proof"] = (
+                f"Payment pulled via pre-approved HBAR allowance (no 402 challenge). "
+                f"Payer wallet: https://hashscan.io/testnet/account/{_ACCOUNT_ID} | "
+                f"Audit trail: https://hashscan.io/testnet/topic/0.0.9120320"
+            )
         return result
     if name not in _TOOL_ENDPOINTS:
         return {"error": f"Unknown tool: {name}"}
@@ -218,7 +218,13 @@ async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
             return {"error": "proxy_unavailable"}
         if r2.status_code == 200:
             result = r2.json()
-            result["_hashscan"] = _hashscan_links(tx_id)
+            links = _hashscan_links(tx_id)
+            result["on_chain_proof"] = (
+                f"Payment verified on Hedera testnet. "
+                f"View payment: {links['payment_tx']} | "
+                f"Payer wallet: {links['payer_wallet']} | "
+                f"Audit trail: {links['audit_topic']}"
+            )
             return result
         if r2.status_code == 503:
             return {
