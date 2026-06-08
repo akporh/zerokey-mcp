@@ -1,65 +1,37 @@
 # ZeroKey Demo Walkthrough
 
-End-to-end demo: Claude Desktop calls `scan_code`, ZeroKey pays 0.5 HBAR on-chain, findings returned — no API key, no 402 error visible to Claude. Total time: ~30 seconds.
+5-act end-to-end demo covering the x402 payment flow, Mirror Node tools, refund guardrail, allowance guardrail, and on-chain audit trail. Total time: ~3 minutes.
 
 ---
 
 ## Prerequisites
 
-- Python 3.12 + `mcp-server/.venv` created (`pip install -r requirements.txt`)
-- Hedera testnet account funded with at least 2 HBAR
-- Claude Desktop installed (any coding agent)
+- Python 3.12 + `mcp-server/.venv` (`pip install -r requirements.txt`)
+- Hedera testnet agent account funded with at least 5 HBAR
+- Claude Desktop installed and configured (see README)
+- Proxy server running on port 8000
 
 ---
 
-## Step 1 — Start the ZeroKey proxy server
+## Setup
 
+**Terminal 1 — Proxy server:**
 ```bash
 cd mcp-server
-.venv/bin/python3.12 -m uvicorn src.main:app --reload --port 8000
+.venv/bin/python3.12 -m uvicorn src.main:app --port 8000
 ```
 
-Leave this running in a terminal. You should see:
+You will see the purple startup banner listing all 7 tools.
 
-```
-INFO:     Uvicorn running on http://127.0.0.1:8000
-```
+**Terminal 2 (optional) — Split screen for recording:**
+Keep Terminal 1 visible alongside Claude Desktop to show real-time payment events.
 
 ---
 
-## Step 2 — Install ZeroKey in Claude Desktop
+## Act 1 — x402 Payment Flow (`scan_code`)
 
-Open `~/Library/Application Support/Claude/claude_desktop_config.json` and add:
-
-```json
-{
-  "mcpServers": {
-    "zerokey": {
-      "command": "/FULL/PATH/TO/mcp-server/.venv/bin/python3.12",
-      "args": ["-m", "mcp_server"],
-      "cwd": "/FULL/PATH/TO/mcp-server",
-      "env": {
-        "HEDERA_ACCOUNT_ID": "0.0.XXXXXX",
-        "HEDERA_PRIVATE_KEY": "302e...",
-        "HEDERA_NETWORK": "testnet"
-      }
-    }
-  }
-}
-```
-
-A ready-to-edit template is at `client/claude_desktop_config.json`.
-
-Restart Claude Desktop. Confirm ZeroKey appears under **Settings → Developer → MCP Servers**.
-
----
-
-## Step 3 — Run the demo
-
-Paste this exact prompt into Claude Desktop:
-
-> Scan this code for security vulnerabilities:
->
+**Prompt:**
+> Use the scan_code tool to scan this code for security vulnerabilities:
 > ```python
 > import sqlite3, os
 > API_SECRET = "super_secret_key_12345"
@@ -73,57 +45,93 @@ Paste this exact prompt into Claude Desktop:
 >     os.system("cat " + path)
 > ```
 
-*(Full sample with more findings is in `demo/vulnerable_code.py`.)*
+**What happens:**
+1. Terminal shows ⚡ PAYMENT REQUIRED — 0.50 HBAR, 402 challenge issued
+2. HITL approval dialog appears (if `ZEROKEY_REQUIRE_APPROVAL=true`) — click **Accept**
+3. Terminal shows 💸 PAYMENT VERIFIED — HBAR broadcast to Hedera testnet
+4. Terminal shows ✅ TOOL EXECUTED — audit written to HCS topic
+5. Claude returns vulnerability findings + Hashscan links for payment tx, payer wallet, and audit topic
+
+**Expected findings:**
+- `[HIGH]` Hard-coded secret — line 2 (Bandit B105)
+- `[HIGH]` SQL injection — line 6 (Bandit B608)
+- `[HIGH]` Shell injection via os.system — line 10 (Bandit B605)
 
 ---
 
-## Step 4 — Expected output (~10–15 seconds)
+## Act 2 — Mirror Node Tool (`get_account_info`)
 
-Claude will call `scan_code` and return findings similar to:
+**Prompt:**
+> Use the get_account_info tool to fetch details for account 0.0.9082590
 
-```
-Security issues found:
-
-1. [HIGH] Hard-coded password — line 3 (Bandit B105)
-2. [HIGH] SQL injection via string concatenation — line 7 (Bandit B608)
-3. [MEDIUM] subprocess/shell call with user-controlled input — line 12 (Bandit B602)
-
-Summary: 3 issues (2 high, 1 medium, 0 errors)
-```
-
-No 402 payment error is visible. ZeroKey paid 0.5 HBAR on the agent's behalf in the background.
+**What happens:**
+1. Same x402 flow — 0.10 HBAR
+2. Claude returns live account balance, key type, and Hashscan link
 
 ---
 
-## Step 5 — Verify on-chain
+## Act 3 — Refund Guardrail (`demo_fail`)
 
-Open the HCS audit trail — every payment and tool execution is immutably recorded:
+**Prompt:**
+> Use the demo_fail tool
 
-**HCS Topic:** [https://hashscan.io/testnet/topic/0.0.9120320](https://hashscan.io/testnet/topic/0.0.9120320)
-
-You will see a `payment_verified` event followed by a `tool_executed` event, timestamped within the last 30 seconds.
-
-The payment transaction itself is also visible on Hashscan — the ZeroKey proxy logs the transaction ID in the HCS event.
+**What happens:**
+1. x402 payment flow runs — 0.10 HBAR verified on-chain
+2. Tool deliberately returns a failure
+3. Terminal shows ❌ TOOL FAILED — refund dispatched
+4. Claude reports: payment was verified, tool failed, full refund automatically dispatched
+5. No HBAR lost — guardrail worked
 
 ---
 
-## Human-in-the-loop payment approval (optional)
+## Act 4 — Allowance Guardrail (`scan_code_allowance`)
 
-Add `"ZEROKEY_REQUIRE_APPROVAL": "true"` to the MCP env block to enable an approval dialog before each payment. Claude Desktop will pause and show:
+**Prompt:**
+> Use the scan_code_allowance tool to scan this code:
+> ```python
+> import sqlite3, os
+> API_SECRET = "super_secret_key_12345"
+> def get_user(username):
+>     conn = sqlite3.connect("users.db")
+>     cursor = conn.cursor()
+>     query = "SELECT * FROM users WHERE username = '" + username + "'"
+>     cursor.execute(query)
+>     return cursor.fetchone()
+> ```
 
-> ZeroKey: Approve payment of 0.5 HBAR to scan this code for security vulnerabilities? (Hedera testnet)
+**What happens:**
+1. **No 402 challenge** — payment pulled directly via pre-approved on-chain allowance
+2. Terminal shows 💸 PAYMENT VERIFIED (mode: allowance) — no ⚡ challenge box
+3. Terminal shows ✅ TOOL EXECUTED
+4. Claude returns findings + payer wallet and audit topic links
+5. Demonstrates spend-limit guardrail: agent pre-authorised a 1 HBAR limit, server pulls within it
 
-Accept → payment proceeds. Decline or Cancel → tool returns `{"error": "payment_declined_by_user"}`.
+---
 
-The template in `client/claude_desktop_config.json` has this enabled by default.
+## Act 5 — On-Chain Audit Trail (`read_hcs_topic`)
+
+**Prompt:**
+> Use the read_hcs_topic tool to read the latest messages from HCS topic 0.0.9120320
+
+**What happens:**
+1. x402 payment — 0.10 HBAR
+2. Claude returns the raw HCS messages showing all events from Acts 1–4:
+   - `402_issued` → `payment_verified` → `tool_executed` (Acts 1, 2, 4)
+   - `payment_verified` → `tool_failed` → `refund_sent` (Act 3)
+3. Every event is timestamped and immutable — judges can verify independently on Hashscan
+
+**Direct link:**
+[hashscan.io/testnet/topic/0.0.9120320](https://hashscan.io/testnet/topic/0.0.9120320)
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Check |
-|---------|-------|
-| `scan_code` not listed in Claude | Restart Claude Desktop; verify `cwd` path is correct |
-| `{"error": "proxy_unavailable"}` | FastAPI server not running on port 8000 |
-| `{"error": "payment_failed"}` | Check HEDERA_ACCOUNT_ID / HEDERA_PRIVATE_KEY in config; check testnet balance |
-| Mirror Node delay | Retry after 15s — testnet can lag up to 12s on congested periods |
+| Symptom | Fix |
+|---------|-----|
+| `hedera-proxy` disconnected in Claude Desktop | Check `PYTHONPATH` is set to the `mcp-server` directory in config |
+| `{"error": "proxy_unavailable"}` | Proxy not running — start uvicorn on port 8000 |
+| `uuid_replayed_on_chain` in proxy logs | Mirror Node replay check timed out — proxy auto-recovers, retry |
+| Tool times out in Claude Desktop | Mirror Node indexing lag on testnet — normal, retry after 10s |
+| HITL dialog not showing | MCP elicitation not active in this session — tool still runs and pays correctly |
+| Port 8000 already in use | `lsof -ti :8000 \| xargs kill -9` then restart proxy |
