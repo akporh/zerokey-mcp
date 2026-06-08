@@ -206,6 +206,8 @@ async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
     except Exception as exc:
         return {"error": "payment_failed", "detail": str(exc)}
 
+    # Wait for Mirror Node to index the transaction before first poll
+    await asyncio.sleep(5)
     receipt_header = f"{tx_id}:{invoice['reference']}"
     for attempt in range(12):
         await asyncio.sleep(3)
