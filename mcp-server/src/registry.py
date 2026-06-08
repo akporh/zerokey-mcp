@@ -57,6 +57,12 @@ _DEFAULTS: dict[str, dict] = {
         "price_hbar": 0.10,
         "required_env_key": None,
     },
+    "/mcp/tools/demo-fail": {
+        "name": "demo-fail",
+        "description": "Demo tool: always fails after payment to show automatic refund guardrail.",
+        "price_hbar": 0.10,
+        "required_env_key": None,
+    },
 }
 
 

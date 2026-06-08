@@ -37,6 +37,11 @@ async def health():
     return {"status": "ok"}
 
 
+@app.post("/mcp/tools/demo-fail")
+async def demo_fail_tool():
+    raise HTTPException(status_code=503, detail="demo_injected_failure")
+
+
 @app.post("/mcp/tools")
 async def list_tools():
     return {

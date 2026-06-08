@@ -118,6 +118,29 @@ async def list_tools() -> list[Tool]:
                 "required": ["transaction_id"],
             },
         ),
+        Tool(
+            name="demo_fail",
+            description=(
+                "Demo tool: always fails after payment to demonstrate ZeroKey's automatic "
+                "refund guardrail. Payment is collected, tool fails, refund is dispatched automatically. (0.1 HBAR)"
+            ),
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="scan_code_allowance",
+            description=(
+                "Scan Python code for security vulnerabilities using a pre-approved HBAR spending allowance. "
+                "No 402 challenge — the proxy pulls payment directly from the agent's approved allowance. "
+                "Requires an on-chain allowance from the agent account to the server account. (0.1 HBAR per call)"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string", "description": "Python source code to scan"},
+                },
+                "required": ["code"],
+            },
+        ),
     ]
 
 
@@ -128,11 +151,22 @@ _TOOL_ENDPOINTS: dict[str, tuple[str, list[str]]] = {
     "lookup_token":     ("lookup-token",             ["token_id"]),
     "read_hcs_topic":   ("read-hcs-topic",           ["topic_id"]),
     "get_transaction":  ("get-transaction",          ["transaction_id"]),
+    "demo_fail":        ("demo-fail",                []),
 }
 
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> dict:
+    if name == "scan_code_allowance":
+        endpoint = f"{_PROXY_URL}/mcp/tools/execute-static-analysis"
+        r = await _post(
+            endpoint,
+            {"code": arguments.get("code", ""), "language": "python"},
+            headers={"x-allowance": "true", "x-agent-account": _ACCOUNT_ID},
+        )
+        if r is None:
+            return {"error": "proxy_unavailable"}
+        return r.json()
     if name not in _TOOL_ENDPOINTS:
         return {"error": f"Unknown tool: {name}"}
     path_suffix, _ = _TOOL_ENDPOINTS[name]

@@ -23,6 +23,7 @@ _TOOL_NAMES = {
     "/mcp/tools/lookup-token":            "lookup_token",
     "/mcp/tools/read-hcs-topic":          "read_hcs_topic",
     "/mcp/tools/get-transaction":         "get_transaction",
+    "/mcp/tools/demo-fail":               "demo_fail",
 }
 
 
