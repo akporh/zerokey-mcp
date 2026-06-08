@@ -4,7 +4,7 @@ import httpx
 
 from src.config import settings
 
-TIMEOUT_SECONDS = 10
+TIMEOUT_SECONDS = 20
 REPLAY_CHECK_TIMEOUT = 3
 REPLAY_CHECK_LIMIT = 100
 

@@ -207,8 +207,8 @@ async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
         return {"error": "payment_failed", "detail": str(exc)}
 
     receipt_header = f"{tx_id}:{invoice['reference']}"
-    for attempt in range(6):
-        await asyncio.sleep(2)
+    for attempt in range(12):
+        await asyncio.sleep(3)
         r2 = await _post(endpoint, payload, headers={"x402-Payment-Receipt": receipt_header})
         if r2 is None:
             return {"error": "proxy_unavailable"}
@@ -218,7 +218,7 @@ async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
             return result
         if r2.status_code != 402:
             return {"error": "payment_failed", "detail": f"proxy returned {r2.status_code} after payment"}
-    return {"error": "payment_failed", "detail": "receipt not accepted after 6 attempts"}
+    return {"error": "payment_failed", "detail": "receipt not accepted after 12 attempts"}
 
 
 def _hashscan_links(tx_id: str) -> dict:
