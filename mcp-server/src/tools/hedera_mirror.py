@@ -117,6 +117,10 @@ async def read_hcs_topic(topic_id: str, limit: int = 10) -> dict:
             decoded = _json.loads(decoded)
         except Exception:
             pass
+        if isinstance(decoded, dict) and decoded.get("tx_id") and "@" in str(decoded["tx_id"]):
+            account, timestamp = decoded["tx_id"].split("@")
+            seconds, nanos = timestamp.split(".")
+            decoded["hashscan_tx_url"] = f"{_HASHSCAN}/transaction/{account}-{seconds}-{nanos}"
         messages.append({
             "sequence_number": m.get("sequence_number"),
             "consensus_timestamp": _ts_to_iso(m.get("consensus_timestamp", "")),
