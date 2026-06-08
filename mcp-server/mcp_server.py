@@ -166,7 +166,12 @@ async def call_tool(name: str, arguments: dict) -> dict:
         )
         if r is None:
             return {"error": "proxy_unavailable"}
-        return r.json()
+        result = r.json()
+        if r.status_code == 200:
+            result["_hashscan"] = _hashscan_links("allowance-pull")
+            result["_hashscan"]["payer_wallet"] = f"https://hashscan.io/testnet/account/{_ACCOUNT_ID}"
+            result["_hashscan"]["audit_topic"]  = "https://hashscan.io/testnet/topic/0.0.9120320"
+        return result
     if name not in _TOOL_ENDPOINTS:
         return {"error": f"Unknown tool: {name}"}
     path_suffix, _ = _TOOL_ENDPOINTS[name]
@@ -208,10 +213,22 @@ async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
         if r2 is None:
             return {"error": "proxy_unavailable"}
         if r2.status_code == 200:
-            return r2.json()
+            result = r2.json()
+            result["_hashscan"] = _hashscan_links(tx_id)
+            return result
         if r2.status_code != 402:
             return {"error": "payment_failed", "detail": f"proxy returned {r2.status_code} after payment"}
     return {"error": "payment_failed", "detail": "receipt not accepted after 6 attempts"}
+
+
+def _hashscan_links(tx_id: str) -> dict:
+    net = "testnet"
+    tx_url = f"https://hashscan.io/{net}/transaction/{tx_id.replace('@', '-').replace('.', '-', 2)}"
+    return {
+        "payment_tx":   tx_url,
+        "payer_wallet": f"https://hashscan.io/{net}/account/{_ACCOUNT_ID}",
+        "audit_topic":  f"https://hashscan.io/{net}/topic/0.0.9120320",
+    }
 
 
 async def _post(
