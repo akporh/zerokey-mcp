@@ -252,7 +252,9 @@ async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
 
 def _hashscan_links(tx_id: str) -> dict:
     net = "testnet"
-    tx_url = f"https://hashscan.io/{net}/transaction/{tx_id.replace('@', '-').replace('.', '-', 2)}"
+    account, timestamp = tx_id.split('@')
+    seconds, nanos = timestamp.split('.')
+    tx_url = f"https://hashscan.io/{net}/transaction/{account}-{seconds}-{nanos}"
     return {
         "payment_tx":   tx_url,
         "payer_wallet": f"https://hashscan.io/{net}/account/{_ACCOUNT_ID}",
