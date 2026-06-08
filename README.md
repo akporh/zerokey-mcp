@@ -171,4 +171,5 @@ Architecture docs and project history are fully accessible on Vercel. Registry a
 ## Bounty
 
 Entry for [Hedera AI Agent Bounty](https://ai-bounties.hedera.com) — Week 3: MCP or x402 Agent.
-Demo: [youtu.be/TYJhflMr0tA](https://youtu.be/TYJhflMr0tA)
+Demo (full 5-act): [youtu.be/SDhiGFgNMj0](https://www.youtube.com/watch?v=SDhiGFgNMj0)
+Demo (original): [youtu.be/TYJhflMr0tA](https://www.youtube.com/watch?v=TYJhflMr0tA)
