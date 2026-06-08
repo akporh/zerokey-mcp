@@ -13,7 +13,7 @@ SUPPORTED_LANGUAGES = ["python"]
 
 class AnalysisInput(BaseModel):
     code: str
-    language: str
+    language: str = "python"
 
 
 def run_analysis(code: str, language: str) -> dict:
