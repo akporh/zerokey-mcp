@@ -216,9 +216,28 @@ async def _call_tool_with_payment(endpoint: str, payload: dict) -> dict:
             result = r2.json()
             result["_hashscan"] = _hashscan_links(tx_id)
             return result
+        if r2.status_code == 503:
+            return {
+                "error": "tool_failed",
+                "message": (
+                    "Payment of {} HBAR was verified on Hedera. "
+                    "The tool failed after payment — a full refund has been automatically "
+                    "dispatched to your account."
+                ).format(invoice["amount"]),
+                "refund_status": "dispatched",
+                "_hashscan": _hashscan_links(tx_id),
+            }
         if r2.status_code != 402:
             return {"error": "payment_failed", "detail": f"proxy returned {r2.status_code} after payment"}
-    return {"error": "payment_failed", "detail": "receipt not accepted after 12 attempts"}
+    return {
+        "error": "verification_timeout",
+        "message": (
+            "Payment of {} HBAR was broadcast to Hedera (tx: {}) but the Mirror Node "
+            "did not index it within the timeout window. Your funds are safe — "
+            "check your wallet on Hashscan."
+        ).format(invoice["amount"], tx_id),
+        "_hashscan": _hashscan_links(tx_id),
+    }
 
 
 def _hashscan_links(tx_id: str) -> dict:
