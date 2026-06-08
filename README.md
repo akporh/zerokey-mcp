@@ -1,6 +1,11 @@
 # ZeroKey — Install Once. Pay Per Call. Zero API Keys.
 
-An MCP server you install into Claude Desktop or Cursor. Your coding agent gets access to premium tools — code analysis, OCR, and more — paid per-use in HBAR via Hedera x402. No API registrations. No subscriptions. One config block.
+An autonomous Machine-to-Machine (M2M) billing proxy that allows Model Context Protocol (MCP) clients (such as Claude Desktop, Cursor, or custom LangGraph/CrewAI engines) to discover and execute premium, server-side developer utilities entirely on-demand. 
+
+By natively implementing the **x402 (HTTP 402 Payment Required)** protocol spec alongside **Hedera Agent Kit** ledger tools, this system completely eliminates the need for human developers to manage external SaaS subscriptions, register billing credit cards, or expose sensitive API keys to their local AI agent
+
+---
+Install into Claude Desktop or Cursor. Your coding agent gets access to premium tools - code analysis, OCR, and more - paid per-use in HBAR via Hedera x402. No API registrations. No subscriptions. One config block.
 
 ## Install in 60 seconds
 
@@ -23,7 +28,7 @@ Add this block to your `claude_desktop_config.json`:
 }
 ```
 
-Restart Claude Desktop. Ask Claude to scan your code. Watch it pay and return findings — no API key setup required.
+Restart Claude Desktop. Ask Claude to scan your code. Watch it pay and return findings - no API key setup required.
 
 ## How it works
 
