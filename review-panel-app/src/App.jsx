@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import ArchitectureReviewPanel from './ArchitectureReviewPanel'
 import ArchitectureDocs from './ArchitectureDocs'
 import BacklogView from './BacklogView'
@@ -94,5 +95,6 @@ export default function App() {
         </div>
       </div>
     </NavContext.Provider>
+    <Analytics />
   )
 }
