@@ -9,3 +9,7 @@ venv/
 dist/
 build/
 .claude.json
+
+# Claude Code / MCP config (may hold tokens)
+.claude/
+.mcp.json
